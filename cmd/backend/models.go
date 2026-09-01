@@ -38,3 +38,18 @@ var staticProducts = []Product{
 	{ID: 103, Name: "Coffee Mug", Category: "Home", Price: 12.99, InStock: false},
 	{ID: 104, Name: "Desk Lamp", Category: "Office", Price: 35.00, InStock: true},
 }
+
+// OrderRequest represents an incoming order payload.
+type OrderRequest struct {
+	ProductID int `json:"product_id"`
+	Quantity  int `json:"quantity"`
+}
+
+// OrderResponse represents a processed order.
+type OrderResponse struct {
+	OrderID   string  `json:"order_id"`
+	ProductID int     `json:"product_id"`
+	Quantity  int     `json:"quantity"`
+	Total     float64 `json:"total"`
+	Status    string  `json:"status"`
+}

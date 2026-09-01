@@ -35,7 +35,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -76,6 +75,7 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 	mux.HandleFunc("GET /api/info", handleInfo(name))
 	mux.HandleFunc("GET /api/users", handleGetUsers())
 	mux.HandleFunc("GET /api/products", handleGetProducts())
+	mux.HandleFunc("POST /api/orders", handleCreateOrder())
 
 	// --- Middleware chain ---
 	// Middleware wraps handlers to add cross-cutting concerns.
