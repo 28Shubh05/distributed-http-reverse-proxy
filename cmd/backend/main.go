@@ -74,6 +74,8 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 
 	mux.HandleFunc("GET /health", handleHealth(name))
 	mux.HandleFunc("GET /api/info", handleInfo(name))
+	mux.HandleFunc("GET /api/users", handleGetUsers())
+	mux.HandleFunc("GET /api/products", handleGetProducts())
 
 	// --- Middleware chain ---
 	// Middleware wraps handlers to add cross-cutting concerns.
@@ -151,44 +153,7 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 	return nil
 }
 
-// --- Handlers ---
-
-// handleHealth returns a health check handler. This endpoint will be used by
-// the proxy's health checker (Day 6) to determine if this backend is alive.
-//
-// Response:
-//
-//	200 OK
-//	{"status": "ok", "server": "backend-1", "timestamp": "2024-..."}
-func handleHealth(serverName string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"status":    "ok",
-			"server":    serverName,
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		})
-	}
-}
-
-// handleInfo returns server metadata. Useful for debugging which backend
-// handled a request (important when load balancing across multiple instances).
-//
-// Response:
-//
-//	200 OK
-//	{"server": "backend-1", "go_version": "go1.26.3", ...}
-func handleInfo(serverName string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"server":     serverName,
-			"go_version": runtime.Version(),
-			"os":         runtime.GOOS,
-			"arch":       runtime.GOARCH,
-			"goroutines": runtime.NumGoroutine(),
-			"uptime":     time.Since(startTime).String(),
-		})
-	}
-}
+// --- Handlers are now in handlers.go ---
 
 // --- Middleware ---
 
