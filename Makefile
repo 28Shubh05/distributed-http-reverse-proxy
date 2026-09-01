@@ -55,9 +55,17 @@ run-tcp-server: build
 run-tcp-client: build
 	./$(BINARY_DIR)/$(TCP_CLIENT).exe
 
-## run-backend: Run HTTP backend server
-run-backend: build
-	./$(BINARY_DIR)/$(BACKEND).exe
+## run-backend-1: Run HTTP backend server 1 (port 9001)
+run-backend-1: build
+	./$(BINARY_DIR)/$(BACKEND).exe -port 9001 -name backend-1
+
+## run-backend-2: Run HTTP backend server 2 (port 9002)
+run-backend-2: build
+	./$(BINARY_DIR)/$(BACKEND).exe -port 9002 -name backend-2
+
+## run-backend-3: Run HTTP backend server 3 (port 9003)
+run-backend-3: build
+	./$(BINARY_DIR)/$(BACKEND).exe -port 9003 -name backend-3
 
 ## help: Show this help
 help:

@@ -46,9 +46,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Graceful shutdown (SIGINT/SIGTERM handling)
   - HTTP server timeout configuration
 
+- [x] **Day 2 — HTTP Server + Backend**
+  - Configurable HTTP backend service with REST endpoints
+  - Data models and JSON encoding/decoding
+  - `GET /api/users` and `GET /api/products` endpoints
+  - `POST /api/orders` endpoint with simulated database latency
+  - Unit testing with `net/http/httptest`
+  - Multi-instance configuration (Makefile targets)
+
 ### Planned
 
-- [ ] Configurable HTTP backend service with REST endpoints
 - [ ] Reverse proxy with request/response forwarding
 - [ ] Connection pooling with benchmarks
 - [ ] Load balancing (Round Robin, Weighted Round Robin, Least Connections, EWMA)
@@ -163,8 +170,8 @@ distributed-http-reverse-proxy/
 | Day | Focus | Status |
 |-----|-------|--------|
 | 1 | TCP, HTTP, Go Networking Foundations | ✅ Complete |
-| 2 | HTTP Backend Service | 🔜 Next |
-| 3 | Reverse Proxy | ⬜ |
+| 2 | HTTP Backend Service | ✅ Complete |
+| 3 | Reverse Proxy | 🔜 Next |
 | 4 | Concurrency + Connection Pooling | ⬜ |
 | 5 | Load Balancer Algorithms | ⬜ |
 | 6 | Health Checking | ⬜ |
