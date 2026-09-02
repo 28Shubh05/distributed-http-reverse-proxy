@@ -19,7 +19,7 @@ all: fmt vet build
 ## build: Build all binaries
 build:
 	@echo "Building all binaries..."
-	@mkdir -p $(BINARY_DIR)
+	@if not exist $(BINARY_DIR) mkdir $(BINARY_DIR)
 	$(GOBUILD) -o $(BINARY_DIR)/$(TCP_SERVER).exe ./cmd/tcpserver/
 	$(GOBUILD) -o $(BINARY_DIR)/$(TCP_CLIENT).exe ./cmd/tcpclient/
 	$(GOBUILD) -o $(BINARY_DIR)/$(BACKEND).exe ./cmd/backend/
