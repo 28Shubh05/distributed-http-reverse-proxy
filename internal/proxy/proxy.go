@@ -1,12 +1,10 @@
 package proxy
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"time"
 )
 
 // ReverseProxy wraps httputil.ReverseProxy and adds our custom logic.

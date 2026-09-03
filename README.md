@@ -54,9 +54,14 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Unit testing with `net/http/httptest`
   - Multi-instance configuration (Makefile targets)
 
+- [x] **Day 3 — Reverse Proxy**
+  - Standard httputil.ReverseProxy implementation
+  - Shared middleware architecture
+  - Request ID propagation and tracking
+  - Latency and status code logging
+
 ### Planned
 
-- [ ] Reverse proxy with request/response forwarding
 - [ ] Connection pooling with benchmarks
 - [ ] Load balancing (Round Robin, Weighted Round Robin, Least Connections, EWMA)
 - [ ] Active health checking + passive failure detection
@@ -171,8 +176,8 @@ distributed-http-reverse-proxy/
 |-----|-------|--------|
 | 1 | TCP, HTTP, Go Networking Foundations | ✅ Complete |
 | 2 | HTTP Backend Service | ✅ Complete |
-| 3 | Reverse Proxy | 🔜 Next |
-| 4 | Concurrency + Connection Pooling | ⬜ |
+| 3 | Reverse Proxy | ✅ Complete |
+| 4 | Concurrency + Connection Pooling | 🔜 Next |
 | 5 | Load Balancer Algorithms | ⬜ |
 | 6 | Health Checking | ⬜ |
 | 7 | Circuit Breaker + Retries | ⬜ |

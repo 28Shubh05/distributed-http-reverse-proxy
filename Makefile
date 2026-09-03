@@ -23,6 +23,7 @@ build:
 	$(GOBUILD) -o $(BINARY_DIR)/$(TCP_SERVER).exe ./cmd/tcpserver/
 	$(GOBUILD) -o $(BINARY_DIR)/$(TCP_CLIENT).exe ./cmd/tcpclient/
 	$(GOBUILD) -o $(BINARY_DIR)/$(BACKEND).exe ./cmd/backend/
+	$(GOBUILD) -o $(BINARY_DIR)/proxy.exe ./cmd/proxy/
 	@echo "Build complete. Binaries in $(BINARY_DIR)/"
 
 ## test: Run all tests
@@ -66,6 +67,10 @@ run-backend-2: build
 ## run-backend-3: Run HTTP backend server 3 (port 9003)
 run-backend-3: build
 	./$(BINARY_DIR)/$(BACKEND).exe -port 9003 -name backend-3
+
+## run-proxy: Run reverse proxy
+run-proxy: build
+	./$(BINARY_DIR)/proxy.exe -port 8080 -backend http://localhost:9001
 
 ## help: Show this help
 help:
