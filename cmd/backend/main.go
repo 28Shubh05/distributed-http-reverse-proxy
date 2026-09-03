@@ -38,6 +38,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 )
 
 // startTime records when the server started, used for uptime reporting.
@@ -83,10 +85,10 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 	//
 	//   Request → requestID → logging → router → handler
 	//   Response ← requestID ← logging ← router ← handler
-	handler := chainMiddleware(
+	handler := middleware.Chain(
 		mux,
-		requestIDMiddleware,
-		loggingMiddleware(logger, &requestCount),
+		middleware.RequestID,
+		middleware.Logging(logger, &requestCount),
 	)
 
 	// --- Server configuration ---
@@ -154,114 +156,6 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 }
 
 // --- Handlers are now in handlers.go ---
-
-// --- Middleware ---
-
-// middlewareFunc is a function that wraps an http.Handler.
-type middlewareFunc func(http.Handler) http.Handler
-
-// chainMiddleware applies middleware in order. The first middleware in the list
-// is the outermost (runs first on request, last on response).
-func chainMiddleware(handler http.Handler, middlewares ...middlewareFunc) http.Handler {
-	// Apply in reverse so the first middleware listed is the outermost.
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-	return handler
-}
-
-// contextKey is an unexported type for context keys to avoid collisions.
-type contextKey string
-
-const requestIDKey contextKey = "request_id"
-
-// requestIDMiddleware generates or propagates X-Request-ID.
-//
-// Request ID flow:
-//  1. If the client sends X-Request-ID → use it (enables end-to-end tracing)
-//  2. Otherwise → generate a new one (crypto/rand for uniqueness)
-//  3. Store it in the request context (for use by handlers and other middleware)
-//  4. Set it as a response header (so the client can reference it in bug reports)
-//
-// In production, request IDs are essential for correlating logs across services.
-func requestIDMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := r.Header.Get("X-Request-ID")
-		if requestID == "" {
-			requestID = generateRequestID()
-		}
-
-		// Set response header before calling next handler.
-		w.Header().Set("X-Request-ID", requestID)
-
-		// Store in context so handlers and downstream middleware can access it.
-		ctx := context.WithValue(r.Context(), requestIDKey, requestID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
-}
-
-// loggingMiddleware logs every request with structured fields.
-//
-// Fields logged:
-//   - request_id  → correlates with X-Request-ID header
-//   - method      → HTTP method (GET, POST, etc.)
-//   - path        → request path
-//   - status      → HTTP status code
-//   - latency_ms  → request processing time in milliseconds
-//   - remote_addr → client's IP:port
-//
-// This is the structured logging format we'll use throughout the project.
-// JSON format enables log aggregation and querying (e.g., in Grafana Loki).
-func loggingMiddleware(logger *slog.Logger, requestCount *atomic.Uint64) middlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			start := time.Now()
-			requestCount.Add(1)
-
-			// Wrap ResponseWriter to capture the status code.
-			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-
-			next.ServeHTTP(sw, r)
-
-			// Extract request ID from context (set by requestIDMiddleware).
-			requestID, _ := r.Context().Value(requestIDKey).(string)
-
-			logger.Info("request handled",
-				"request_id", requestID,
-				"method", r.Method,
-				"path", r.URL.Path,
-				"status", sw.status,
-				"latency_ms", time.Since(start).Milliseconds(),
-				"remote_addr", r.RemoteAddr,
-				"user_agent", r.UserAgent(),
-			)
-		})
-	}
-}
-
-// statusWriter wraps http.ResponseWriter to capture the status code.
-// We need this because the standard ResponseWriter doesn't expose the
-// status code after WriteHeader is called.
-type statusWriter struct {
-	http.ResponseWriter
-	status      int
-	wroteHeader bool
-}
-
-func (sw *statusWriter) WriteHeader(code int) {
-	if !sw.wroteHeader {
-		sw.status = code
-		sw.wroteHeader = true
-	}
-	sw.ResponseWriter.WriteHeader(code)
-}
-
-func (sw *statusWriter) Write(b []byte) (int, error) {
-	if !sw.wroteHeader {
-		sw.wroteHeader = true
-	}
-	return sw.ResponseWriter.Write(b)
-}
 
 // --- Helpers ---
 
