@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
 )
 
@@ -38,10 +40,18 @@ func run(ctx context.Context, logger *slog.Logger, port, backendURL string) erro
 		return fmt.Errorf("failed to create reverse proxy: %w", err)
 	}
 
+	// Apply middleware
+	var requestCount atomic.Uint64
+	handler := middleware.Chain(
+		rp,
+		middleware.RequestID,
+		middleware.Logging(logger, &requestCount),
+	)
+
 	addr := ":" + port
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           rp,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

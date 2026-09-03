@@ -28,7 +28,7 @@ func NewReverseProxy(backendURL string, logger *slog.Logger) (*ReverseProxy, err
 			req.URL.Host = target.Host
 			// req.URL.Path stays the same to forward the path correctly
 			req.Host = target.Host
-			
+
 			// Optional: add any extra headers, clear X-Forwarded-For if needed
 			// For now httputil.ReverseProxy handles X-Forwarded-For automatically
 		},
@@ -49,16 +49,6 @@ func NewReverseProxy(backendURL string, logger *slog.Logger) (*ReverseProxy, err
 }
 
 func (rp *ReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
-	
 	// Pass to standard reverse proxy
 	rp.proxy.ServeHTTP(w, r)
-	
-	// Since standard httputil.ReverseProxy doesn't give us the status code directly easily 
-	// unless we wrap ResponseWriter, we just log latency here as a basic level.
-	// We will add more robust logging via middleware.
-	rp.logger.Debug("proxied request", 
-		"path", r.URL.Path, 
-		"latency_ms", time.Since(start).Milliseconds(),
-	)
 }
