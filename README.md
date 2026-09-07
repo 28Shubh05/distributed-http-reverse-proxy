@@ -60,6 +60,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Request ID propagation and tracking
   - Latency and status code logging
 
+- [x] **Day 4 — Concurrency + Connection Management**
+  - `internal/connectionpool` package wrapping `http.Transport`
+  - Configurable pool: `MaxIdleConns`, `MaxIdleConnsPerHost`, `IdleConnTimeout`, dial/response timeouts
+  - `NoPool` config for benchmark comparison
+  - Per-request backend timeout via `context.WithTimeout`
+  - Client disconnect detection (context cancellation propagation)
+  - `transport.CloseIdleConnections()` on graceful shutdown
+  - Benchmark suite: `BenchmarkPooled`, `BenchmarkNoPool`, parallel variants
+  - `go test -race ./...` passes clean
+
 ### Planned
 
 - [ ] Connection pooling with benchmarks
@@ -177,8 +187,8 @@ distributed-http-reverse-proxy/
 | 1 | TCP, HTTP, Go Networking Foundations | ✅ Complete |
 | 2 | HTTP Backend Service | ✅ Complete |
 | 3 | Reverse Proxy | ✅ Complete |
-| 4 | Concurrency + Connection Pooling | 🔜 Next |
-| 5 | Load Balancer Algorithms | ⬜ |
+| 4 | Concurrency + Connection Pooling | ✅ Complete |
+| 5 | Load Balancer Algorithms | 🔜 Next |
 | 6 | Health Checking | ⬜ |
 | 7 | Circuit Breaker + Retries | ⬜ |
 | 8 | Redis Caching | ⬜ |

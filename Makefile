@@ -1,4 +1,4 @@
-.PHONY: all build test vet fmt clean run-tcp-server run-tcp-client run-backend help
+.PHONY: all build test vet fmt clean run-tcp-server run-tcp-client run-backend bench bench-nopool help
 
 # Go parameters
 GOCMD=go
@@ -68,9 +68,21 @@ run-backend-2: build
 run-backend-3: build
 	./$(BINARY_DIR)/$(BACKEND).exe -port 9003 -name backend-3
 
-## run-proxy: Run reverse proxy
+## run-proxy: Run reverse proxy (with connection pooling)
 run-proxy: build
 	./$(BINARY_DIR)/proxy.exe -port 8080 -backend http://localhost:9001
+
+## run-proxy-nopool: Run reverse proxy without connection pooling (for benchmarking)
+run-proxy-nopool: build
+	./$(BINARY_DIR)/proxy.exe -port 8080 -backend http://localhost:9001 -no-pool
+
+## bench: Run connection pool benchmarks (pooled vs no-pool)
+bench:
+	$(GOTEST) -bench=. -benchtime=5s -benchmem ./internal/connectionpool/
+
+## bench-parallel: Run parallel connection pool benchmarks
+bench-parallel:
+	$(GOTEST) -bench=Parallel -benchtime=5s -benchmem ./internal/connectionpool/
 
 ## help: Show this help
 help:
