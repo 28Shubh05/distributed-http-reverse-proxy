@@ -8,7 +8,9 @@ type Backend struct {
 	URL    *url.URL // Parsed URL of the backend
 	Weight int      // Weight for Weighted Round Robin
 	
-	// Future fields for health checking and active connections will be added here.
+	// ActiveConnections tracks the number of currently active requests to this backend.
+	// This should be updated atomically.
+	ActiveConnections int64
 }
 
 // LoadBalancer defines the interface for selecting a backend server.
