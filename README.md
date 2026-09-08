@@ -70,10 +70,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Benchmark suite: `BenchmarkPooled`, `BenchmarkNoPool`, parallel variants
   - `go test -race ./...` passes clean
 
+- [x] **Day 5 — Load Balancer**
+  - `LoadBalancer` interface and `Backend` model
+  - Round Robin implementation (thread-safe, atomic operations)
+  - Weighted Round Robin implementation (LVS algorithm)
+  - Least Connections implementation
+  - Independent testing of all algorithms
+
 ### Planned
 
-- [ ] Connection pooling with benchmarks
-- [ ] Load balancing (Round Robin, Weighted Round Robin, Least Connections, EWMA)
+- [ ] EWMA Load Balancing
 - [ ] Active health checking + passive failure detection
 - [ ] Circuit breaker with CLOSED/OPEN/HALF_OPEN states
 - [ ] Retry policy with exponential backoff and jitter
@@ -188,8 +194,8 @@ distributed-http-reverse-proxy/
 | 2 | HTTP Backend Service | ✅ Complete |
 | 3 | Reverse Proxy | ✅ Complete |
 | 4 | Concurrency + Connection Pooling | ✅ Complete |
-| 5 | Load Balancer Algorithms | 🔜 Next |
-| 6 | Health Checking | ⬜ |
+| 5 | Load Balancer Algorithms | ✅ Complete |
+| 6 | Health Checking | 🔜 Next |
 | 7 | Circuit Breaker + Retries | ⬜ |
 | 8 | Redis Caching | ⬜ |
 | 9 | Rate Limiting | ⬜ |
