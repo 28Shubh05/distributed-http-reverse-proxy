@@ -1,6 +1,10 @@
 package loadbalancer
 
-import "net/url"
+import (
+	"net/url"
+	
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
+)
 
 // Backend represents an upstream server that can handle requests.
 type Backend struct {
@@ -11,6 +15,9 @@ type Backend struct {
 	// ActiveConnections tracks the number of currently active requests to this backend.
 	// This should be updated atomically.
 	ActiveConnections int64
+
+	// Health tracks the health state of this backend.
+	Health *health.BackendHealth
 }
 
 // LoadBalancer defines the interface for selecting a backend server.

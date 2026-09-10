@@ -19,7 +19,7 @@ func NewRoundRobin() *RoundRobin {
 	}
 }
 
-// SelectBackend chooses the next backend in a round-robin fashion.
+// SelectBackend chooses the next backend in a round-robin fashion, skipping unhealthy ones.
 func (rr *RoundRobin) SelectBackend() *Backend {
 	rr.mu.RLock()
 	backends := rr.backends
@@ -30,11 +30,16 @@ func (rr *RoundRobin) SelectBackend() *Backend {
 		return nil
 	}
 
-	// Atomically increment the counter to ensure thread-safety
-	// Note: atomic.AddUint64 returns the new value, so the first selection is index 1.
-	// This is fine as it still distributes evenly.
-	idx := atomic.AddUint64(&rr.current, 1) % uint64(n)
-	return backends[idx]
+	for i := 0; i < n; i++ {
+		idx := atomic.AddUint64(&rr.current, 1) % uint64(n)
+		b := backends[idx]
+		if b.Health == nil || b.Health.IsAvailable() {
+			return b
+		}
+	}
+
+	// All backends are unavailable
+	return nil
 }
 
 // AddBackend adds a new backend to the pool.
@@ -64,8 +69,26 @@ func (rr *RoundRobin) RemoveBackend(id string) {
 	}
 }
 
-// RecordSuccess is a no-op for basic round robin.
-func (rr *RoundRobin) RecordSuccess(id string) {}
+// RecordSuccess records a success for passive health checking.
+func (rr *RoundRobin) RecordSuccess(id string) {
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
+	for _, b := range rr.backends {
+		if b.ID == id && b.Health != nil {
+			b.Health.RecordSuccess()
+			return
+		}
+	}
+}
 
-// RecordFailure is a no-op for basic round robin.
-func (rr *RoundRobin) RecordFailure(id string) {}
+// RecordFailure records a failure for passive health checking.
+func (rr *RoundRobin) RecordFailure(id string) {
+	rr.mu.RLock()
+	defer rr.mu.RUnlock()
+	for _, b := range rr.backends {
+		if b.ID == id && b.Health != nil {
+			b.Health.RecordFailure()
+			return
+		}
+	}
+}

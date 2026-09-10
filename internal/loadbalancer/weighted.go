@@ -57,7 +57,7 @@ func (wrr *WeightedRoundRobin) recalculate() {
 	wrr.currentWeight = 0
 }
 
-// SelectBackend chooses the next backend considering their weights.
+// SelectBackend chooses the next backend considering their weights and health.
 func (wrr *WeightedRoundRobin) SelectBackend() *Backend {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
@@ -67,7 +67,17 @@ func (wrr *WeightedRoundRobin) SelectBackend() *Backend {
 		return nil
 	}
 
-	for {
+	// We need to avoid infinite loops if all backends are unhealthy or have 0 weight.
+	// Since the algorithm cycles, if we check `n` elements at `currentWeight == 1`
+	// without finding a match, no healthy backends exist.
+	// To simplify, we'll keep a counter of iterations without finding a backend.
+	// Max iterations is roughly n * (maxWeight / gcdWeight). Let's use a simpler bound.
+	maxIterations := n * wrr.maxWeight
+	if maxIterations == 0 {
+		return nil
+	}
+
+	for i := 0; i < maxIterations; i++ {
 		wrr.currentIndex = (wrr.currentIndex + 1) % n
 		if wrr.currentIndex == 0 {
 			wrr.currentWeight = wrr.currentWeight - wrr.gcdWeight
@@ -79,10 +89,13 @@ func (wrr *WeightedRoundRobin) SelectBackend() *Backend {
 			}
 		}
 
-		if wrr.backends[wrr.currentIndex].Weight >= wrr.currentWeight {
-			return wrr.backends[wrr.currentIndex]
+		b := wrr.backends[wrr.currentIndex]
+		if b.Weight >= wrr.currentWeight && (b.Health == nil || b.Health.IsAvailable()) {
+			return b
 		}
 	}
+
+	return nil
 }
 
 // AddBackend adds a new backend to the pool.
@@ -116,8 +129,26 @@ func (wrr *WeightedRoundRobin) RemoveBackend(id string) {
 	}
 }
 
-// RecordSuccess is a no-op for weighted round robin.
-func (wrr *WeightedRoundRobin) RecordSuccess(id string) {}
+// RecordSuccess records a success for passive health checking.
+func (wrr *WeightedRoundRobin) RecordSuccess(id string) {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
+	for _, b := range wrr.backends {
+		if b.ID == id && b.Health != nil {
+			b.Health.RecordSuccess()
+			return
+		}
+	}
+}
 
-// RecordFailure is a no-op for weighted round robin.
-func (wrr *WeightedRoundRobin) RecordFailure(id string) {}
+// RecordFailure records a failure for passive health checking.
+func (wrr *WeightedRoundRobin) RecordFailure(id string) {
+	wrr.mu.Lock()
+	defer wrr.mu.Unlock()
+	for _, b := range wrr.backends {
+		if b.ID == id && b.Health != nil {
+			b.Health.RecordFailure()
+			return
+		}
+	}
+}

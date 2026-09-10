@@ -18,7 +18,7 @@ func NewLeastConnections() *LeastConnections {
 	}
 }
 
-// SelectBackend chooses the backend with the fewest active connections.
+// SelectBackend chooses the healthy backend with the fewest active connections.
 func (lc *LeastConnections) SelectBackend() *Backend {
 	lc.mu.RLock()
 	backends := lc.backends
@@ -33,6 +33,9 @@ func (lc *LeastConnections) SelectBackend() *Backend {
 	minConns := int64(-1)
 
 	for _, b := range backends {
+		if b.Health != nil && !b.Health.IsAvailable() {
+			continue
+		}
 		conns := atomic.LoadInt64(&b.ActiveConnections)
 		if minConns == -1 || conns < minConns {
 			minConns = conns
@@ -74,7 +77,7 @@ func (lc *LeastConnections) RemoveBackend(id string) {
 	}
 }
 
-func (lc *LeastConnections) decrementConnection(id string) {
+func (lc *LeastConnections) decrementConnection(id string) *Backend {
 	lc.mu.RLock()
 	backends := lc.backends
 	lc.mu.RUnlock()
@@ -89,17 +92,24 @@ func (lc *LeastConnections) decrementConnection(id string) {
 				}
 				val = atomic.LoadInt64(&b.ActiveConnections)
 			}
-			return
+			return b
 		}
+	}
+	return nil
+}
+
+// RecordSuccess decrements the active connection count and records passive success.
+func (lc *LeastConnections) RecordSuccess(id string) {
+	b := lc.decrementConnection(id)
+	if b != nil && b.Health != nil {
+		b.Health.RecordSuccess()
 	}
 }
 
-// RecordSuccess decrements the active connection count.
-func (lc *LeastConnections) RecordSuccess(id string) {
-	lc.decrementConnection(id)
-}
-
-// RecordFailure decrements the active connection count.
+// RecordFailure decrements the active connection count and records passive failure.
 func (lc *LeastConnections) RecordFailure(id string) {
-	lc.decrementConnection(id)
+	b := lc.decrementConnection(id)
+	if b != nil && b.Health != nil {
+		b.Health.RecordFailure()
+	}
 }
