@@ -1,9 +1,10 @@
 // cmd/proxy is the entry point for the reverse proxy server.
 //
-// Day 4 additions:
-//   - Connection pool via internal/connectionpool
-//   - Per-request backend timeout flag
-//   - Pool stats logged on shutdown
+// Day 6 additions:
+//   - Multiple backends (comma separated)
+//   - Round Robin load balancer
+//   - Active health checker
+//   - Passive failure detection
 package main
 
 import (
@@ -12,20 +13,24 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/connectionpool"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
 )
 
 func main() {
 	port := flag.String("port", "8080", "HTTP proxy listen port")
-	backendURL := flag.String("backend", "http://localhost:9001", "Backend URL to proxy to")
+	backendsFlag := flag.String("backends", "http://localhost:9001", "Comma-separated list of backend URLs")
 	backendTimeout := flag.Duration("backend-timeout", 30*time.Second, "Max time to wait for backend response")
 	maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle connections in pool")
 	maxIdlePerHost := flag.Int("max-idle-per-host", 20, "Max idle connections per backend host")
@@ -41,7 +46,7 @@ func main() {
 
 	if err := run(ctx, logger, runConfig{
 		port:           *port,
-		backendURL:     *backendURL,
+		backendsFlag:   *backendsFlag,
 		backendTimeout: *backendTimeout,
 		maxIdleConns:   *maxIdleConns,
 		maxIdlePerHost: *maxIdlePerHost,
@@ -54,7 +59,7 @@ func main() {
 
 type runConfig struct {
 	port           string
-	backendURL     string
+	backendsFlag   string
 	backendTimeout time.Duration
 	maxIdleConns   int
 	maxIdlePerHost int
@@ -74,11 +79,44 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	}
 	transport := connectionpool.New(poolCfg)
 
+	// --- Load Balancer & Health Checker ---
+	lb := loadbalancer.NewRoundRobin()
+	healthCfg := health.DefaultConfig()
+	healthChecker := health.NewChecker(healthCfg, logger)
+
+	backendURLs := strings.Split(cfg.backendsFlag, ",")
+	for i, bURL := range backendURLs {
+		bURL = strings.TrimSpace(bURL)
+		if bURL == "" {
+			continue
+		}
+		
+		parsedURL, err := url.Parse(bURL)
+		if err != nil {
+			return fmt.Errorf("invalid backend URL %q: %w", bURL, err)
+		}
+
+		id := fmt.Sprintf("backend-%d", i+1)
+		bh := health.NewBackendHealth(healthCfg)
+		
+		backend := &loadbalancer.Backend{
+			ID:     id,
+			URL:    parsedURL,
+			Weight: 1, // Default weight for algorithms that use it
+			Health: bh,
+		}
+		
+		lb.AddBackend(backend)
+		healthChecker.Register(id, bURL, bh)
+	}
+
+	// Start health checker background goroutines
+	healthChecker.Start(ctx)
+
 	// --- Proxy ---
 	rp, err := proxy.New(proxy.Config{
-		BackendURL:     cfg.backendURL,
 		BackendTimeout: cfg.backendTimeout,
-	}, transport, logger)
+	}, lb, transport, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create reverse proxy: %w", err)
 	}
@@ -107,7 +145,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	go func() {
 		logger.Info("reverse proxy started",
 			"addr", addr,
-			"backend", cfg.backendURL,
+			"backends", cfg.backendsFlag,
 			"backend_timeout", cfg.backendTimeout,
 			"pool_max_idle", poolCfg.MaxIdleConns,
 			"pool_max_idle_per_host", poolCfg.MaxIdleConnsPerHost,

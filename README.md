@@ -77,10 +77,15 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Least Connections implementation
   - Independent testing of all algorithms
 
+- [x] **Day 6 — Health Checking**
+  - Active background polling (`/health`) with dedicated HTTP client
+  - Passive failure detection (hooks into 5xx and transport errors)
+  - `HEALTHY` / `UNHEALTHY` / `RECOVERING` state machine
+  - Configurable failure and recovery thresholds to prevent flapping
+  - Load balancer integration (skips unavailable backends)
+
 ### Planned
 
-- [ ] EWMA Load Balancing
-- [ ] Active health checking + passive failure detection
 - [ ] Circuit breaker with CLOSED/OPEN/HALF_OPEN states
 - [ ] Retry policy with exponential backoff and jitter
 - [ ] Redis-based HTTP response caching
@@ -195,8 +200,8 @@ distributed-http-reverse-proxy/
 | 3 | Reverse Proxy | ✅ Complete |
 | 4 | Concurrency + Connection Pooling | ✅ Complete |
 | 5 | Load Balancer Algorithms | ✅ Complete |
-| 6 | Health Checking | 🔜 Next |
-| 7 | Circuit Breaker + Retries | ⬜ |
+| 6 | Health Checking | ✅ Complete |
+| 7 | Circuit Breaker + Retries | 🔜 Next |
 | 8 | Redis Caching | ⬜ |
 | 9 | Rate Limiting | ⬜ |
 | 10 | Service Discovery (etcd) | ⬜ |
