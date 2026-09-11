@@ -84,10 +84,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Configurable failure and recovery thresholds to prevent flapping
   - Load balancer integration (skips unavailable backends)
 
+- [x] **Day 7 — Reliability (Circuit Breakers + Retries)**
+  - Circuit Breaker with `CLOSED`, `OPEN`, and `HALF_OPEN` states
+  - Rate-limited probe requests in `HALF_OPEN` (thundering herd prevention)
+  - Safe, idempotency-aware retries (GET/HEAD enabled, POST disabled)
+  - Exponential backoff with randomized Full Jitter
+  - Automatic retry failover to surviving healthy backends
+  - Context cancellation support (promptly aborts backoff sleep)
+
 ### Planned
 
-- [ ] Circuit breaker with CLOSED/OPEN/HALF_OPEN states
-- [ ] Retry policy with exponential backoff and jitter
 - [ ] Redis-based HTTP response caching
 - [ ] Token Bucket rate limiting + Redis distributed rate limiter
 - [ ] etcd service discovery with dynamic backend registration
@@ -190,6 +196,7 @@ distributed-http-reverse-proxy/
 ## Documentation
 
 - [Networking Concepts](docs/networking.md) — TCP, HTTP, sockets, DNS, connection pooling, TLS, reverse/forward proxy
+- [Failure Handling & Reliability](docs/failure-handling.md) — Circuit breakers, idempotency, retries, exponential backoff, jitter, retry storms
 
 ## Development Progress
 
@@ -201,8 +208,8 @@ distributed-http-reverse-proxy/
 | 4 | Concurrency + Connection Pooling | ✅ Complete |
 | 5 | Load Balancer Algorithms | ✅ Complete |
 | 6 | Health Checking | ✅ Complete |
-| 7 | Circuit Breaker + Retries | 🔜 Next |
-| 8 | Redis Caching | ⬜ |
+| 7 | Circuit Breaker + Retries | ✅ Complete |
+| 8 | Redis Caching | 🔜 Next |
 | 9 | Rate Limiting | ⬜ |
 | 10 | Service Discovery (etcd) | ⬜ |
 | 11 | Admin API + PostgreSQL | ⬜ |
