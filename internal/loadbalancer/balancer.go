@@ -3,6 +3,7 @@ package loadbalancer
 import (
 	"net/url"
 	
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 )
 
@@ -18,6 +19,21 @@ type Backend struct {
 
 	// Health tracks the health state of this backend.
 	Health *health.BackendHealth
+
+	// CircuitBreaker guards this backend against cascading failure.
+	CircuitBreaker *circuitbreaker.CircuitBreaker
+}
+
+// IsAvailable reports whether the backend is ready to receive requests,
+// checking both its health status and circuit breaker gate.
+func (b *Backend) IsAvailable() bool {
+	if b.Health != nil && !b.Health.IsAvailable() {
+		return false
+	}
+	if b.CircuitBreaker != nil && !b.CircuitBreaker.Allow() {
+		return false
+	}
+	return true
 }
 
 // LoadBalancer defines the interface for selecting a backend server.

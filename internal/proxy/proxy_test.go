@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/retry"
 )
 
 func testLogger() *slog.Logger {
@@ -280,5 +282,202 @@ func TestReverseProxy_ClientCancellation(t *testing.T) {
 	// Verify that client cancellation did NOT increment backend failure count
 	if bh1.Snapshot().TotalFailure != 0 {
 		t.Errorf("expected 0 failures for client cancellation, got %d", bh1.Snapshot().TotalFailure)
+	}
+}
+
+// TestReverseProxy_Retry_FailoverOn503 verifies that when backend 1 returns 503,
+// an idempotent GET request is automatically retried on backend 2.
+func TestReverseProxy_Retry_FailoverOn503(t *testing.T) {
+	b1Hits := atomic.Int32{}
+	b2Hits := atomic.Int32{}
+
+	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b1Hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable) // 503
+	}))
+	defer s1.Close()
+
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b2Hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("s2 ok"))
+	}))
+	defer s2.Close()
+
+	u1, _ := url.Parse(s1.URL)
+	u2, _ := url.Parse(s2.URL)
+
+	lb := loadbalancer.NewRoundRobin()
+	lb.AddBackend(&loadbalancer.Backend{ID: "b1", URL: u1})
+	lb.AddBackend(&loadbalancer.Backend{ID: "b2", URL: u2})
+
+	retryPolicy := retry.DefaultPolicy()
+	retryPolicy.MaxRetries = 2
+	retryPolicy.InitialBackoff = 5 * time.Millisecond
+	retryPolicy.JitterFraction = 0.0
+
+	rp, err := New(Config{
+		BackendTimeout: 2 * time.Second,
+		RetryPolicy:    retryPolicy,
+	}, lb, nil, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error creating proxy: %v", err)
+	}
+
+	proxyServer := httptest.NewServer(rp)
+	defer proxyServer.Close()
+
+	resp, err := http.Get(proxyServer.URL + "/retry-test")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Client should transparently receive 200 OK after failover
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK from failover retry, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if string(body) != "s2 ok" {
+		t.Errorf("expected body 's2 ok', got %q", string(body))
+	}
+
+	if b1Hits.Load() != 1 || b2Hits.Load() != 1 {
+		t.Errorf("expected 1 hit on b1 and 1 hit on b2, got b1=%d, b2=%d", b1Hits.Load(), b2Hits.Load())
+	}
+}
+
+// TestReverseProxy_Retry_NoRetryForPost verifies that a non-idempotent POST request
+// is NOT retried even when the backend returns 503.
+func TestReverseProxy_Retry_NoRetryForPost(t *testing.T) {
+	b1Hits := atomic.Int32{}
+	b2Hits := atomic.Int32{}
+
+	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b1Hits.Add(1)
+		w.WriteHeader(http.StatusServiceUnavailable) // 503
+	}))
+	defer s1.Close()
+
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b2Hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer s2.Close()
+
+	u1, _ := url.Parse(s1.URL)
+	u2, _ := url.Parse(s2.URL)
+
+	lb := loadbalancer.NewRoundRobin()
+	lb.AddBackend(&loadbalancer.Backend{ID: "b1", URL: u1})
+	lb.AddBackend(&loadbalancer.Backend{ID: "b2", URL: u2})
+
+	retryPolicy := retry.DefaultPolicy()
+	retryPolicy.MaxRetries = 2
+	retryPolicy.InitialBackoff = 5 * time.Millisecond
+
+	rp, err := New(Config{
+		BackendTimeout: 2 * time.Second,
+		RetryPolicy:    retryPolicy,
+	}, lb, nil, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error creating proxy: %v", err)
+	}
+
+	proxyServer := httptest.NewServer(rp)
+	defer proxyServer.Close()
+
+	// Send POST request
+	resp, err := http.Post(proxyServer.URL+"/order", "application/json", nil)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Should NOT be retried -> returns 503 directly to client
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 for non-idempotent POST, got %d", resp.StatusCode)
+	}
+
+	if b1Hits.Load() != 1 {
+		t.Errorf("expected exactly 1 attempt on b1, got %d", b1Hits.Load())
+	}
+	if b2Hits.Load() != 0 {
+		t.Errorf("expected 0 attempts on b2 for POST, got %d", b2Hits.Load())
+	}
+}
+
+// TestReverseProxy_CircuitBreaker_TripsAndProtects verifies that once a backend's
+// CircuitBreaker trips OPEN, subsequent requests bypass it and go to healthy backends.
+func TestReverseProxy_CircuitBreaker_TripsAndProtects(t *testing.T) {
+	b1Hits := atomic.Int32{}
+	b2Hits := atomic.Int32{}
+
+	s1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b1Hits.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer s1.Close()
+
+	s2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b2Hits.Add(1)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("b2 healthy"))
+	}))
+	defer s2.Close()
+
+	u1, _ := url.Parse(s1.URL)
+	u2, _ := url.Parse(s2.URL)
+
+	cb1 := circuitbreaker.New(circuitbreaker.Config{
+		FailureThreshold: 2,
+		OpenTimeout:      1 * time.Second,
+	})
+
+	lb := loadbalancer.NewRoundRobin()
+	lb.AddBackend(&loadbalancer.Backend{ID: "b1", URL: u1, CircuitBreaker: cb1})
+	lb.AddBackend(&loadbalancer.Backend{ID: "b2", URL: u2})
+
+	rp, err := New(Config{
+		BackendTimeout: 2 * time.Second,
+	}, lb, nil, testLogger())
+	if err != nil {
+		t.Fatalf("unexpected error creating proxy: %v", err)
+	}
+
+	proxyServer := httptest.NewServer(rp)
+	defer proxyServer.Close()
+
+	// Send requests to trip cb1 (2 failures)
+	// Round robin hits b1, b2, b1, b2
+	for i := 0; i < 4; i++ {
+		resp, _ := http.Get(proxyServer.URL + "/data")
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}
+
+	// cb1 should now be OPEN
+	if cb1.State() != circuitbreaker.StateOpen {
+		t.Fatalf("expected cb1 to be OPEN after failures, got %v", cb1.State())
+	}
+
+	b1Before := b1Hits.Load()
+
+	// Subsequent requests should ONLY go to b2, b1 should receive zero requests
+	for i := 0; i < 5; i++ {
+		resp, err := http.Get(proxyServer.URL + "/data")
+		if err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected 200 OK from b2, got %d", resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+
+	if b1Hits.Load() != b1Before {
+		t.Errorf("b1 received requests while circuit breaker was OPEN! hits before=%d, after=%d", b1Before, b1Hits.Load())
 	}
 }

@@ -21,17 +21,20 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/connectionpool"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/retry"
 )
 
 func main() {
 	port := flag.String("port", "8080", "HTTP proxy listen port")
 	backendsFlag := flag.String("backends", "http://localhost:9001", "Comma-separated list of backend URLs")
 	backendTimeout := flag.Duration("backend-timeout", 30*time.Second, "Max time to wait for backend response")
+	maxRetries := flag.Int("max-retries", 2, "Max retry attempts on failover for idempotent requests")
 	maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle connections in pool")
 	maxIdlePerHost := flag.Int("max-idle-per-host", 20, "Max idle connections per backend host")
 	noPool := flag.Bool("no-pool", false, "Disable connection pooling (for benchmarking)")
@@ -48,6 +51,7 @@ func main() {
 		port:           *port,
 		backendsFlag:   *backendsFlag,
 		backendTimeout: *backendTimeout,
+		maxRetries:     *maxRetries,
 		maxIdleConns:   *maxIdleConns,
 		maxIdlePerHost: *maxIdlePerHost,
 		noPool:         *noPool,
@@ -61,6 +65,7 @@ type runConfig struct {
 	port           string
 	backendsFlag   string
 	backendTimeout time.Duration
+	maxRetries     int
 	maxIdleConns   int
 	maxIdlePerHost int
 	noPool         bool
@@ -98,12 +103,14 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 
 		id := fmt.Sprintf("backend-%d", i+1)
 		bh := health.NewBackendHealth(healthCfg)
+		cb := circuitbreaker.New(circuitbreaker.DefaultConfig())
 		
 		backend := &loadbalancer.Backend{
-			ID:     id,
-			URL:    parsedURL,
-			Weight: 1, // Default weight for algorithms that use it
-			Health: bh,
+			ID:             id,
+			URL:            parsedURL,
+			Weight:         1,
+			Health:         bh,
+			CircuitBreaker: cb,
 		}
 		
 		lb.AddBackend(backend)
@@ -113,9 +120,14 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	// Start health checker background goroutines
 	healthChecker.Start(ctx)
 
+	// --- Retry Policy ---
+	retryPolicy := retry.DefaultPolicy()
+	retryPolicy.MaxRetries = cfg.maxRetries
+
 	// --- Proxy ---
 	rp, err := proxy.New(proxy.Config{
 		BackendTimeout: cfg.backendTimeout,
+		RetryPolicy:    retryPolicy,
 	}, lb, transport, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create reverse proxy: %w", err)

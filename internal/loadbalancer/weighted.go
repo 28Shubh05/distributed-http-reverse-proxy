@@ -90,7 +90,7 @@ func (wrr *WeightedRoundRobin) SelectBackend() *Backend {
 		}
 
 		b := wrr.backends[wrr.currentIndex]
-		if b.Weight >= wrr.currentWeight && (b.Health == nil || b.Health.IsAvailable()) {
+		if b.Weight >= wrr.currentWeight && b.IsAvailable() {
 			return b
 		}
 	}
@@ -129,25 +129,35 @@ func (wrr *WeightedRoundRobin) RemoveBackend(id string) {
 	}
 }
 
-// RecordSuccess records a success for passive health checking.
+// RecordSuccess records a success for health checking and circuit breaking.
 func (wrr *WeightedRoundRobin) RecordSuccess(id string) {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
 	for _, b := range wrr.backends {
-		if b.ID == id && b.Health != nil {
-			b.Health.RecordSuccess()
+		if b.ID == id {
+			if b.Health != nil {
+				b.Health.RecordSuccess()
+			}
+			if b.CircuitBreaker != nil {
+				b.CircuitBreaker.RecordSuccess()
+			}
 			return
 		}
 	}
 }
 
-// RecordFailure records a failure for passive health checking.
+// RecordFailure records a failure for health checking and circuit breaking.
 func (wrr *WeightedRoundRobin) RecordFailure(id string) {
 	wrr.mu.Lock()
 	defer wrr.mu.Unlock()
 	for _, b := range wrr.backends {
-		if b.ID == id && b.Health != nil {
-			b.Health.RecordFailure()
+		if b.ID == id {
+			if b.Health != nil {
+				b.Health.RecordFailure()
+			}
+			if b.CircuitBreaker != nil {
+				b.CircuitBreaker.RecordFailure()
+			}
 			return
 		}
 	}

@@ -33,7 +33,7 @@ func (lc *LeastConnections) SelectBackend() *Backend {
 	minConns := int64(-1)
 
 	for _, b := range backends {
-		if b.Health != nil && !b.Health.IsAvailable() {
+		if !b.IsAvailable() {
 			continue
 		}
 		conns := atomic.LoadInt64(&b.ActiveConnections)
@@ -98,18 +98,28 @@ func (lc *LeastConnections) decrementConnection(id string) *Backend {
 	return nil
 }
 
-// RecordSuccess decrements the active connection count and records passive success.
+// RecordSuccess decrements the active connection count and records success for health and circuit breaking.
 func (lc *LeastConnections) RecordSuccess(id string) {
 	b := lc.decrementConnection(id)
-	if b != nil && b.Health != nil {
-		b.Health.RecordSuccess()
+	if b != nil {
+		if b.Health != nil {
+			b.Health.RecordSuccess()
+		}
+		if b.CircuitBreaker != nil {
+			b.CircuitBreaker.RecordSuccess()
+		}
 	}
 }
 
-// RecordFailure decrements the active connection count and records passive failure.
+// RecordFailure decrements the active connection count and records failure for health and circuit breaking.
 func (lc *LeastConnections) RecordFailure(id string) {
 	b := lc.decrementConnection(id)
-	if b != nil && b.Health != nil {
-		b.Health.RecordFailure()
+	if b != nil {
+		if b.Health != nil {
+			b.Health.RecordFailure()
+		}
+		if b.CircuitBreaker != nil {
+			b.CircuitBreaker.RecordFailure()
+		}
 	}
 }
