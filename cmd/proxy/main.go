@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/cache"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/connectionpool"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
@@ -35,6 +36,10 @@ func main() {
 	backendsFlag := flag.String("backends", "http://localhost:9001", "Comma-separated list of backend URLs")
 	backendTimeout := flag.Duration("backend-timeout", 30*time.Second, "Max time to wait for backend response")
 	maxRetries := flag.Int("max-retries", 2, "Max retry attempts on failover for idempotent requests")
+	enableCache := flag.Bool("cache", true, "Enable HTTP response caching")
+	cacheTTL := flag.Duration("cache-ttl", 60*time.Second, "TTL for cached HTTP responses")
+	cacheSize := flag.Int("cache-size", 1000, "Maximum entries in in-memory LRU cache")
+	redisAddr := flag.String("redis-addr", "", "Redis address (e.g. localhost:6379), leave empty for in-memory cache")
 	maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle connections in pool")
 	maxIdlePerHost := flag.Int("max-idle-per-host", 20, "Max idle connections per backend host")
 	noPool := flag.Bool("no-pool", false, "Disable connection pooling (for benchmarking)")
@@ -52,6 +57,10 @@ func main() {
 		backendsFlag:   *backendsFlag,
 		backendTimeout: *backendTimeout,
 		maxRetries:     *maxRetries,
+		enableCache:    *enableCache,
+		cacheTTL:       *cacheTTL,
+		cacheSize:      *cacheSize,
+		redisAddr:      *redisAddr,
 		maxIdleConns:   *maxIdleConns,
 		maxIdlePerHost: *maxIdlePerHost,
 		noPool:         *noPool,
@@ -66,6 +75,10 @@ type runConfig struct {
 	backendsFlag   string
 	backendTimeout time.Duration
 	maxRetries     int
+	enableCache    bool
+	cacheTTL       time.Duration
+	cacheSize      int
+	redisAddr      string
 	maxIdleConns   int
 	maxIdlePerHost int
 	noPool         bool
@@ -133,13 +146,39 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 		return fmt.Errorf("failed to create reverse proxy: %w", err)
 	}
 
+	// --- Response Cache ---
+	var cacheBackend cache.Cache
+	if cfg.enableCache {
+		if cfg.redisAddr != "" {
+			redisCfg := cache.DefaultRedisConfig()
+			redisCfg.Addr = cfg.redisAddr
+			rc, err := cache.NewRedisCacheFromConfig(redisCfg, logger)
+			if err != nil {
+				logger.Warn("failed to connect to redis, falling back to in-memory cache", "err", err)
+				cacheBackend = cache.NewMemoryCache(cfg.cacheSize)
+			} else {
+				cacheBackend = rc
+				logger.Info("connected to redis distributed cache", "addr", cfg.redisAddr)
+			}
+		} else {
+			cacheBackend = cache.NewMemoryCache(cfg.cacheSize)
+			logger.Info("using in-memory LRU response cache", "max_size", cfg.cacheSize)
+		}
+	}
+
 	// --- Middleware ---
 	var requestCount atomic.Uint64
-	handler := middleware.Chain(
-		rp,
+	middlewares := []middleware.MiddlewareFunc{
 		middleware.RequestID,
 		middleware.Logging(logger, &requestCount),
-	)
+	}
+	if cacheBackend != nil {
+		middlewares = append(middlewares, middleware.Caching(cacheBackend, middleware.CacheConfig{
+			TTL:                cfg.cacheTTL,
+			InvalidateOnMutate: true,
+		}))
+	}
+	handler := middleware.Chain(rp, middlewares...)
 
 	// --- HTTP server ---
 	addr := ":" + cfg.port
@@ -159,6 +198,8 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 			"addr", addr,
 			"backends", cfg.backendsFlag,
 			"backend_timeout", cfg.backendTimeout,
+			"cache_enabled", cfg.enableCache,
+			"cache_ttl", cfg.cacheTTL,
 			"pool_max_idle", poolCfg.MaxIdleConns,
 			"pool_max_idle_per_host", poolCfg.MaxIdleConnsPerHost,
 			"pid", os.Getpid(),
@@ -179,6 +220,16 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	logger.Info("shutting down proxy...",
 		"total_requests", requestCount.Load(),
 	)
+	if cacheBackend != nil {
+		stats := cacheBackend.Stats()
+		logger.Info("cache metrics on shutdown",
+			"hits", stats.Hits,
+			"misses", stats.Misses,
+			"size", stats.Size,
+			"evictions", stats.Evictions,
+		)
+	}
+
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
