@@ -92,9 +92,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Automatic retry failover to surviving healthy backends
   - Context cancellation support (promptly aborts backoff sleep)
 
+- [x] **Day 8 — Redis + Caching**
+  - High-performance In-Memory LRU Cache with size bounding and eviction
+  - Redis-backed distributed cache with TTL and fail-safe fallback
+  - Caching middleware with `X-Cache: HIT / MISS / BYPASS` observability
+  - Automatic cache invalidation on mutating requests (POST, PUT, DELETE, PATCH)
+  - Security header hygiene (excludes Auth/Cookie requests to prevent leaks)
+  - Benchmarked ~2,190x speedup with 0 memory allocations on cache hits
+
 ### Planned
 
-- [ ] Redis-based HTTP response caching
 - [ ] Token Bucket rate limiting + Redis distributed rate limiter
 - [ ] etcd service discovery with dynamic backend registration
 - [ ] Admin API with authentication
@@ -197,6 +204,7 @@ distributed-http-reverse-proxy/
 
 - [Networking Concepts](docs/networking.md) — TCP, HTTP, sockets, DNS, connection pooling, TLS, reverse/forward proxy
 - [Failure Handling & Reliability](docs/failure-handling.md) — Circuit breakers, idempotency, retries, exponential backoff, jitter, retry storms
+- [Response Caching](docs/caching.md) — HTTP caching semantics, LRU vs Redis, invalidation, security rules, benchmarks
 
 ## Development Progress
 
@@ -209,8 +217,8 @@ distributed-http-reverse-proxy/
 | 5 | Load Balancer Algorithms | ✅ Complete |
 | 6 | Health Checking | ✅ Complete |
 | 7 | Circuit Breaker + Retries | ✅ Complete |
-| 8 | Redis Caching | 🔜 Next |
-| 9 | Rate Limiting | ⬜ |
+| 8 | Redis Caching | ✅ Complete |
+| 9 | Rate Limiting | 🔜 Next |
 | 10 | Service Discovery (etcd) | ⬜ |
 | 11 | Admin API + PostgreSQL | ⬜ |
 | 12 | Observability (Prometheus + Grafana) | ⬜ |

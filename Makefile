@@ -84,6 +84,10 @@ bench:
 bench-parallel:
 	$(GOTEST) -bench=Parallel -benchtime=5s -benchmem ./internal/connectionpool/
 
+## bench-cache: Run cache benchmarks (cache disabled vs cache enabled)
+bench-cache:
+	$(GOTEST) -bench=BenchmarkCache -benchtime=3s -benchmem ./internal/cache/
+
 ## help: Show this help
 help:
 	@echo "Available targets:"
