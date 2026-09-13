@@ -100,9 +100,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Security header hygiene (excludes Auth/Cookie requests to prevent leaks)
   - Benchmarked ~2,190x speedup with 0 memory allocations on cache hits
 
+- [x] **Day 9 — Rate Limiting (Token Bucket + Redis)**
+  - In-Memory Token Bucket rate limiter with continuous time-based refill
+  - Burst capacity handling and per-client IP isolation
+  - Distributed Redis rate limiter using atomic Lua scripts
+  - Fail-safe fallback to in-memory limiter when Redis is unreachable
+  - HTTP `429 Too Many Requests` responses with `Retry-After` header
+  - Standard headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+
 ### Planned
 
-- [ ] Token Bucket rate limiting + Redis distributed rate limiter
 - [ ] etcd service discovery with dynamic backend registration
 - [ ] Admin API with authentication
 - [ ] PostgreSQL integration for metadata/configuration
@@ -205,6 +212,7 @@ distributed-http-reverse-proxy/
 - [Networking Concepts](docs/networking.md) — TCP, HTTP, sockets, DNS, connection pooling, TLS, reverse/forward proxy
 - [Failure Handling & Reliability](docs/failure-handling.md) — Circuit breakers, idempotency, retries, exponential backoff, jitter, retry storms
 - [Response Caching](docs/caching.md) — HTTP caching semantics, LRU vs Redis, invalidation, security rules, benchmarks
+- [Rate Limiting](docs/rate-limiting.md) — Token Bucket algorithm, distributed Redis Lua scripts, 429 semantics, burst handling
 
 ## Development Progress
 
@@ -218,8 +226,8 @@ distributed-http-reverse-proxy/
 | 6 | Health Checking | ✅ Complete |
 | 7 | Circuit Breaker + Retries | ✅ Complete |
 | 8 | Redis Caching | ✅ Complete |
-| 9 | Rate Limiting | 🔜 Next |
-| 10 | Service Discovery (etcd) | ⬜ |
+| 9 | Rate Limiting | ✅ Complete |
+| 10 | Service Discovery (etcd) | 🔜 Next |
 | 11 | Admin API + PostgreSQL | ⬜ |
 | 12 | Observability (Prometheus + Grafana) | ⬜ |
 | 13 | Docker + Distributed Deployment | ⬜ |
