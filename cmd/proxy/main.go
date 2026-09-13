@@ -28,7 +28,9 @@ import (
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/ratelimit"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/retry"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -39,7 +41,10 @@ func main() {
 	enableCache := flag.Bool("cache", true, "Enable HTTP response caching")
 	cacheTTL := flag.Duration("cache-ttl", 60*time.Second, "TTL for cached HTTP responses")
 	cacheSize := flag.Int("cache-size", 1000, "Maximum entries in in-memory LRU cache")
-	redisAddr := flag.String("redis-addr", "", "Redis address (e.g. localhost:6379), leave empty for in-memory cache")
+	enableRateLimit := flag.Bool("ratelimit", true, "Enable Token Bucket rate limiting")
+	rateLimitRate := flag.Float64("rate", 50.0, "Rate limit refill rate (tokens per second)")
+	rateLimitBurst := flag.Int("burst", 100, "Rate limit maximum burst capacity (tokens)")
+	redisAddr := flag.String("redis-addr", "", "Redis address (e.g. localhost:6379), leave empty for in-memory cache and rate limiter")
 	maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle connections in pool")
 	maxIdlePerHost := flag.Int("max-idle-per-host", 20, "Max idle connections per backend host")
 	noPool := flag.Bool("no-pool", false, "Disable connection pooling (for benchmarking)")
@@ -53,17 +58,20 @@ func main() {
 	defer stop()
 
 	if err := run(ctx, logger, runConfig{
-		port:           *port,
-		backendsFlag:   *backendsFlag,
-		backendTimeout: *backendTimeout,
-		maxRetries:     *maxRetries,
-		enableCache:    *enableCache,
-		cacheTTL:       *cacheTTL,
-		cacheSize:      *cacheSize,
-		redisAddr:      *redisAddr,
-		maxIdleConns:   *maxIdleConns,
-		maxIdlePerHost: *maxIdlePerHost,
-		noPool:         *noPool,
+		port:            *port,
+		backendsFlag:    *backendsFlag,
+		backendTimeout:  *backendTimeout,
+		maxRetries:      *maxRetries,
+		enableCache:     *enableCache,
+		cacheTTL:        *cacheTTL,
+		cacheSize:       *cacheSize,
+		enableRateLimit: *enableRateLimit,
+		rate:            *rateLimitRate,
+		burst:           *rateLimitBurst,
+		redisAddr:       *redisAddr,
+		maxIdleConns:    *maxIdleConns,
+		maxIdlePerHost:  *maxIdlePerHost,
+		noPool:          *noPool,
 	}); err != nil {
 		logger.Error("proxy failed", "error", err)
 		os.Exit(1)
@@ -71,17 +79,20 @@ func main() {
 }
 
 type runConfig struct {
-	port           string
-	backendsFlag   string
-	backendTimeout time.Duration
-	maxRetries     int
-	enableCache    bool
-	cacheTTL       time.Duration
-	cacheSize      int
-	redisAddr      string
-	maxIdleConns   int
-	maxIdlePerHost int
-	noPool         bool
+	port            string
+	backendsFlag    string
+	backendTimeout  time.Duration
+	maxRetries      int
+	enableCache     bool
+	cacheTTL        time.Duration
+	cacheSize       int
+	enableRateLimit bool
+	rate            float64
+	burst           int
+	redisAddr       string
+	maxIdleConns    int
+	maxIdlePerHost  int
+	noPool          bool
 }
 
 func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
@@ -166,12 +177,28 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 		}
 	}
 
+	// --- Rate Limiter ---
+	var limiter ratelimit.Limiter
+	if cfg.enableRateLimit {
+		if cfg.redisAddr != "" {
+			rdb := redis.NewClient(&redis.Options{Addr: cfg.redisAddr})
+			limiter = ratelimit.NewRedisLimiter(rdb, cfg.rate, cfg.burst, "proxy:ratelimit:", logger)
+			logger.Info("using redis distributed rate limiter", "addr", cfg.redisAddr, "rate", cfg.rate, "burst", cfg.burst)
+		} else {
+			limiter = ratelimit.NewTokenBucketLimiter(cfg.rate, cfg.burst)
+			logger.Info("using in-memory token bucket rate limiter", "rate", cfg.rate, "burst", cfg.burst)
+		}
+	}
+
 	// --- Middleware ---
 	var requestCount atomic.Uint64
 	middlewares := []middleware.MiddlewareFunc{
 		middleware.RequestID,
-		middleware.Logging(logger, &requestCount),
 	}
+	if limiter != nil {
+		middlewares = append(middlewares, middleware.RateLimiting(limiter, middleware.RateLimitConfig{}))
+	}
+	middlewares = append(middlewares, middleware.Logging(logger, &requestCount))
 	if cacheBackend != nil {
 		middlewares = append(middlewares, middleware.Caching(cacheBackend, middleware.CacheConfig{
 			TTL:                cfg.cacheTTL,
