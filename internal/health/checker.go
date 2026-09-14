@@ -42,6 +42,9 @@ type Checker struct {
 // A dedicated http.Client is used so health-check traffic does not share the
 // proxy's connection pool.
 func NewChecker(cfg Config, logger *slog.Logger) *Checker {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Checker{
 		entries: make(map[string]*entry),
 		cfg:     cfg,
