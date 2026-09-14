@@ -24,6 +24,7 @@ import (
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/cache"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/connectionpool"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/discovery"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
@@ -36,6 +37,7 @@ import (
 func main() {
 	port := flag.String("port", "8080", "HTTP proxy listen port")
 	backendsFlag := flag.String("backends", "http://localhost:9001", "Comma-separated list of backend URLs")
+	etcdEndpoints := flag.String("etcd-endpoints", "", "Comma-separated list of etcd endpoints for dynamic service discovery (e.g. localhost:2379)")
 	backendTimeout := flag.Duration("backend-timeout", 30*time.Second, "Max time to wait for backend response")
 	maxRetries := flag.Int("max-retries", 2, "Max retry attempts on failover for idempotent requests")
 	enableCache := flag.Bool("cache", true, "Enable HTTP response caching")
@@ -60,6 +62,7 @@ func main() {
 	if err := run(ctx, logger, runConfig{
 		port:            *port,
 		backendsFlag:    *backendsFlag,
+		etcdEndpoints:   *etcdEndpoints,
 		backendTimeout:  *backendTimeout,
 		maxRetries:      *maxRetries,
 		enableCache:     *enableCache,
@@ -81,6 +84,7 @@ func main() {
 type runConfig struct {
 	port            string
 	backendsFlag    string
+	etcdEndpoints   string
 	backendTimeout  time.Duration
 	maxRetries      int
 	enableCache     bool
@@ -139,6 +143,26 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 		
 		lb.AddBackend(backend)
 		healthChecker.Register(id, bURL, bh)
+	}
+
+	// --- Dynamic Service Discovery ---
+	if cfg.etcdEndpoints != "" {
+		endpoints := strings.Split(cfg.etcdEndpoints, ",")
+		for i := range endpoints {
+			endpoints[i] = strings.TrimSpace(endpoints[i])
+		}
+		reg, err := discovery.NewRegistry(endpoints, 3*time.Second, logger)
+		if err != nil {
+			logger.Warn("failed to connect to etcd service discovery", "endpoints", cfg.etcdEndpoints, "err", err)
+		} else {
+			watcher := discovery.NewWatcher(reg, lb, healthChecker, circuitbreaker.DefaultConfig(), logger)
+			go func() {
+				if err := watcher.Sync(ctx); err != nil {
+					logger.Error("service discovery watcher error", "err", err)
+				}
+			}()
+			logger.Info("dynamic service discovery enabled via etcd", "endpoints", cfg.etcdEndpoints)
+		}
 	}
 
 	// Start health checker background goroutines

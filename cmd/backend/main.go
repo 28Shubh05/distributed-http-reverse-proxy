@@ -35,10 +35,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/discovery"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 )
 
@@ -48,6 +50,9 @@ var startTime = time.Now()
 func main() {
 	port := flag.String("port", "9001", "HTTP server listen port")
 	name := flag.String("name", "backend-1", "Server instance name (identifies this backend)")
+	etcdEndpoints := flag.String("etcd-endpoints", "", "Comma-separated list of etcd endpoints for auto-registration (e.g. localhost:2379)")
+	weight := flag.Int("weight", 1, "Load balancer weight for this backend")
+	advertiseURL := flag.String("advertise-url", "", "Public URL for service discovery (defaults to http://localhost:<port>)")
 	flag.Parse()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -57,14 +62,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, logger, *port, *name); err != nil {
+	if err := run(ctx, logger, *port, *name, *etcdEndpoints, *advertiseURL, *weight); err != nil {
 		logger.Error("server failed", "error", err)
 		os.Exit(1)
 	}
 }
 
 // run starts the HTTP server and blocks until shutdown is requested.
-func run(ctx context.Context, logger *slog.Logger, port, name string) error {
+func run(ctx context.Context, logger *slog.Logger, port, name, etcdEndpoints, advertiseURL string, weight int) error {
 	// --- Route registration ---
 	// Go 1.22+ supports method-based routing directly in http.ServeMux.
 	// "GET /health" only matches GET requests to /health (not POST, PUT, etc.).
@@ -124,6 +129,41 @@ func run(ctx context.Context, logger *slog.Logger, port, name string) error {
 		}
 		close(errCh)
 	}()
+
+	// --- Service Discovery Auto-Registration ---
+	if etcdEndpoints != "" {
+		endpoints := strings.Split(etcdEndpoints, ",")
+		for i := range endpoints {
+			endpoints[i] = strings.TrimSpace(endpoints[i])
+		}
+		reg, err := discovery.NewRegistry(endpoints, 3*time.Second, logger)
+		if err != nil {
+			logger.Warn("failed to connect to etcd for auto-registration", "err", err)
+		} else {
+			advURL := advertiseURL
+			if advURL == "" {
+				advURL = fmt.Sprintf("http://localhost:%s", port)
+			}
+			entry := discovery.BackendEntry{
+				ID:     name,
+				URL:    advURL,
+				Weight: weight,
+			}
+			stopKA, err := reg.Register(ctx, entry, 15*time.Second)
+			if err != nil {
+				logger.Warn("failed to register with etcd", "err", err)
+			} else {
+				defer func() {
+					stopKA()
+					deregCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+					defer cancel()
+					_ = reg.Deregister(deregCtx, name)
+					_ = reg.Close()
+				}()
+				logger.Info("backend registered in etcd service discovery", "id", name, "url", advURL)
+			}
+		}
+	}
 
 	// Wait for either a fatal server error or shutdown signal.
 	select {
