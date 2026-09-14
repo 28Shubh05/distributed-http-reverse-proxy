@@ -108,9 +108,15 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - HTTP `429 Too Many Requests` responses with `Retry-After` header
   - Standard headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
+- [x] **Day 10 — Service Discovery (etcd)**
+  - etcd v3 service discovery registry with lease grant and keepalive heartbeats
+  - Automatic backend self-registration on startup and graceful deregistration
+  - Dynamic discovery watcher streaming changes via etcd gRPC watch API
+  - Zero-downtime hot updates to load balancer pool and health checker without restart
+  - Tested dynamic lifecycle: backend start, backend stop, and backend restart
+
 ### Planned
 
-- [ ] etcd service discovery with dynamic backend registration
 - [ ] Admin API with authentication
 - [ ] PostgreSQL integration for metadata/configuration
 - [ ] Prometheus metrics + Grafana dashboard
@@ -213,6 +219,7 @@ distributed-http-reverse-proxy/
 - [Failure Handling & Reliability](docs/failure-handling.md) — Circuit breakers, idempotency, retries, exponential backoff, jitter, retry storms
 - [Response Caching](docs/caching.md) — HTTP caching semantics, LRU vs Redis, invalidation, security rules, benchmarks
 - [Rate Limiting](docs/rate-limiting.md) — Token Bucket algorithm, distributed Redis Lua scripts, 429 semantics, burst handling
+- [Service Discovery](docs/service-discovery.md) — etcd v3 registry, lease keepalive, watch streaming, dynamic pool updates
 
 ## Development Progress
 
@@ -227,8 +234,8 @@ distributed-http-reverse-proxy/
 | 7 | Circuit Breaker + Retries | ✅ Complete |
 | 8 | Redis Caching | ✅ Complete |
 | 9 | Rate Limiting | ✅ Complete |
-| 10 | Service Discovery (etcd) | 🔜 Next |
-| 11 | Admin API + PostgreSQL | ⬜ |
+| 10 | Service Discovery (etcd) | ✅ Complete |
+| 11 | Admin API + PostgreSQL | 🔜 Next |
 | 12 | Observability (Prometheus + Grafana) | ⬜ |
 | 13 | Docker + Distributed Deployment | ⬜ |
 | 14 | Load Testing + Chaos Testing | ⬜ |
