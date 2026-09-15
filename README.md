@@ -115,10 +115,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Zero-downtime hot updates to load balancer pool and health checker without restart
   - Tested dynamic lifecycle: backend start, backend stop, and backend restart
 
+- [x] **Day 11 — Admin API + PostgreSQL**
+  - Dedicated administrative control plane on isolated HTTP port (`:8081`)
+  - Bearer token and `X-Admin-Token` authentication middleware
+  - Dynamic backend registration, deregistration, and listing via REST endpoints
+  - PostgreSQL persistent storage with automatic DDL schema migrations and in-memory fallback
+  - Dynamic configuration get/set and zero-downtime pool reload API (`POST /admin/reload`)
+  - Standalone Admin CLI control plane tool (`cmd/admin`)
+
 ### Planned
 
-- [ ] Admin API with authentication
-- [ ] PostgreSQL integration for metadata/configuration
 - [ ] Prometheus metrics + Grafana dashboard
 - [ ] Docker + Docker Compose deployment
 - [ ] Multi-proxy horizontal scaling
@@ -220,6 +226,7 @@ distributed-http-reverse-proxy/
 - [Response Caching](docs/caching.md) — HTTP caching semantics, LRU vs Redis, invalidation, security rules, benchmarks
 - [Rate Limiting](docs/rate-limiting.md) — Token Bucket algorithm, distributed Redis Lua scripts, 429 semantics, burst handling
 - [Service Discovery](docs/service-discovery.md) — etcd v3 registry, lease keepalive, watch streaming, dynamic pool updates
+- [Admin API & PostgreSQL](docs/admin-api.md) — Control plane endpoints, bearer auth, PostgreSQL schema, reload, CLI tool
 
 ## Development Progress
 
@@ -235,8 +242,8 @@ distributed-http-reverse-proxy/
 | 8 | Redis Caching | ✅ Complete |
 | 9 | Rate Limiting | ✅ Complete |
 | 10 | Service Discovery (etcd) | ✅ Complete |
-| 11 | Admin API + PostgreSQL | 🔜 Next |
-| 12 | Observability (Prometheus + Grafana) | ⬜ |
+| 11 | Admin API + PostgreSQL | ✅ Complete |
+| 12 | Observability (Prometheus + Grafana) | 🔜 Next |
 | 13 | Docker + Distributed Deployment | ⬜ |
 | 14 | Load Testing + Chaos Testing | ⬜ |
 | 15 | Production Polish + Documentation | ⬜ |
