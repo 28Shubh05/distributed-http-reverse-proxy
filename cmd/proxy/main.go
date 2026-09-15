@@ -21,6 +21,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/admin"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/cache"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/connectionpool"
@@ -31,6 +32,7 @@ import (
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/ratelimit"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/retry"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/storage"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -47,6 +49,9 @@ func main() {
 	rateLimitRate := flag.Float64("rate", 50.0, "Rate limit refill rate (tokens per second)")
 	rateLimitBurst := flag.Int("burst", 100, "Rate limit maximum burst capacity (tokens)")
 	redisAddr := flag.String("redis-addr", "", "Redis address (e.g. localhost:6379), leave empty for in-memory cache and rate limiter")
+	adminPort := flag.String("admin-port", "8081", "HTTP admin API listen port")
+	adminToken := flag.String("admin-token", "secret-admin-token", "Secret authentication token for Admin API")
+	postgresURL := flag.String("postgres-url", "", "PostgreSQL connection string (optional, leave empty for in-memory store)")
 	maxIdleConns := flag.Int("max-idle-conns", 100, "Max idle connections in pool")
 	maxIdlePerHost := flag.Int("max-idle-per-host", 20, "Max idle connections per backend host")
 	noPool := flag.Bool("no-pool", false, "Disable connection pooling (for benchmarking)")
@@ -63,6 +68,9 @@ func main() {
 		port:            *port,
 		backendsFlag:    *backendsFlag,
 		etcdEndpoints:   *etcdEndpoints,
+		adminPort:       *adminPort,
+		adminToken:      *adminToken,
+		postgresURL:     *postgresURL,
 		backendTimeout:  *backendTimeout,
 		maxRetries:      *maxRetries,
 		enableCache:     *enableCache,
@@ -85,6 +93,9 @@ type runConfig struct {
 	port            string
 	backendsFlag    string
 	etcdEndpoints   string
+	adminPort       string
+	adminToken      string
+	postgresURL     string
 	backendTimeout  time.Duration
 	maxRetries      int
 	enableCache     bool
@@ -231,7 +242,47 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	}
 	handler := middleware.Chain(rp, middlewares...)
 
-	// --- HTTP server ---
+	// --- Admin API Storage ---
+	var store storage.Store
+	if cfg.postgresURL != "" {
+		ps, err := storage.NewPostgresStore(cfg.postgresURL)
+		if err != nil {
+			logger.Warn("failed to connect to postgres, using in-memory store", "err", err)
+			store = storage.NewMemoryStore()
+		} else {
+			store = ps
+			logger.Info("admin API connected to postgresql", "url", cfg.postgresURL)
+		}
+	} else {
+		store = storage.NewMemoryStore()
+	}
+	defer store.Close()
+
+	// --- Admin API Server ---
+	adminSrv := admin.NewServer(admin.Config{
+		Token:         cfg.adminToken,
+		Store:         store,
+		LoadBalancer:  lb,
+		HealthChecker: healthChecker,
+		Cache:         cacheBackend,
+		Logger:        logger,
+	})
+	adminHTTP := &http.Server{
+		Addr:              ":" + cfg.adminPort,
+		Handler:           adminSrv.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	go func() {
+		logger.Info("admin API server started", "port", cfg.adminPort)
+		if err := adminHTTP.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("admin server error", "err", err)
+		}
+	}()
+
+	// --- Proxy HTTP server ---
 	addr := ":" + cfg.port
 	server := &http.Server{
 		Addr:    addr,
@@ -287,6 +338,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown error: %w", err)
 	}
+	_ = adminHTTP.Shutdown(shutdownCtx)
 
 	// Close idle connections in the transport pool.
 	transport.CloseIdleConnections()

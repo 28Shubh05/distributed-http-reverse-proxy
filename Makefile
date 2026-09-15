@@ -24,6 +24,7 @@ build:
 	$(GOBUILD) -o $(BINARY_DIR)/$(TCP_CLIENT).exe ./cmd/tcpclient/
 	$(GOBUILD) -o $(BINARY_DIR)/$(BACKEND).exe ./cmd/backend/
 	$(GOBUILD) -o $(BINARY_DIR)/proxy.exe ./cmd/proxy/
+	$(GOBUILD) -o $(BINARY_DIR)/admin.exe ./cmd/admin/
 	@echo "Build complete. Binaries in $(BINARY_DIR)/"
 
 ## test: Run all tests
