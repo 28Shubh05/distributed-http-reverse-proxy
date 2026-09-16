@@ -123,9 +123,18 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Dynamic configuration get/set and zero-downtime pool reload API (`POST /admin/reload`)
   - Standalone Admin CLI control plane tool (`cmd/admin`)
 
+- [x] **Day 12 — Observability (Prometheus + Grafana)**
+  - Prometheus metrics collector with 15 counters, histograms, and gauges across all system layers
+  - Request throughput, P50/P95/P99 latency histograms, active connection gauges
+  - Per-backend health, request forwarding rates, and failure type breakdowns
+  - Cache hit/miss rates, rate limit rejection counts, circuit breaker state tracking
+  - `/metrics` scrape endpoint exposed on admin port (public, no auth required)
+  - Enriched structured JSON logging with backend, retry count, cache hit, latency, and error fields
+  - Pre-built Grafana dashboard JSON with 9 panels auto-provisioned from `deployments/grafana/`
+  - Prometheus scrape configuration in `deployments/prometheus/prometheus.yml`
+
 ### Planned
 
-- [ ] Prometheus metrics + Grafana dashboard
 - [ ] Docker + Docker Compose deployment
 - [ ] Multi-proxy horizontal scaling
 - [ ] Load testing + chaos testing + benchmarks
@@ -227,6 +236,7 @@ distributed-http-reverse-proxy/
 - [Rate Limiting](docs/rate-limiting.md) — Token Bucket algorithm, distributed Redis Lua scripts, 429 semantics, burst handling
 - [Service Discovery](docs/service-discovery.md) — etcd v3 registry, lease keepalive, watch streaming, dynamic pool updates
 - [Admin API & PostgreSQL](docs/admin-api.md) — Control plane endpoints, bearer auth, PostgreSQL schema, reload, CLI tool
+- [Observability](docs/observability.md) — Prometheus metrics, /metrics endpoint, JSON logging fields, Grafana dashboard
 
 ## Development Progress
 
@@ -243,8 +253,8 @@ distributed-http-reverse-proxy/
 | 9 | Rate Limiting | ✅ Complete |
 | 10 | Service Discovery (etcd) | ✅ Complete |
 | 11 | Admin API + PostgreSQL | ✅ Complete |
-| 12 | Observability (Prometheus + Grafana) | 🔜 Next |
-| 13 | Docker + Distributed Deployment | ⬜ |
+| 12 | Observability (Prometheus + Grafana) | ✅ Complete |
+| 13 | Docker + Distributed Deployment | 🔜 Next |
 | 14 | Load Testing + Chaos Testing | ⬜ |
 | 15 | Production Polish + Documentation | ⬜ |
 
