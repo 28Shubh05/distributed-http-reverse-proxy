@@ -198,3 +198,25 @@ func TestAdminAPI_StatsAndEvents(t *testing.T) {
 		t.Errorf("expected 200 on events, got %d", rr2.Code)
 	}
 }
+
+func TestAdminAPI_MetricsEndpoint(t *testing.T) {
+	server := NewServer(Config{
+		Token: "secret-token-123",
+		Store: storage.NewMemoryStore(),
+	})
+	handler := server.Handler()
+
+	// Scrape /metrics without token should succeed (200 OK)
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /metrics without token, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !bytes.Contains([]byte(body), []byte("go_info")) && !bytes.Contains([]byte(body), []byte("proxy_requests_total")) {
+		t.Errorf("expected prometheus metrics in response, got:\n%s", body)
+	}
+}

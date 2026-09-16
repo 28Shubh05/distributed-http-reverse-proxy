@@ -1,0 +1,211 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Throughput & Latency Overview",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 2,
+      "title": "Request Rate (RPS) by Status Code",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(proxy_requests_total[1m])) by (code)",
+          "legendFormat": "HTTP {{code}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 3,
+      "title": "Request Latency Quantiles (P50, P95, P99)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(proxy_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P50 Latency"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(proxy_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P95 Latency"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(proxy_request_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P99 Latency"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 4,
+      "title": "Backend Fleet & Health",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0, "max": 1 }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 10 },
+      "id": 5,
+      "title": "Upstream Backend Health Status (1=UP, 0=DOWN)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "backend_health_status",
+          "legendFormat": "{{backend}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 10 },
+      "id": 6,
+      "title": "Backend Forwarding Rate (req/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(backend_requests_total[1m])) by (backend)",
+          "legendFormat": "{{backend}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 10 },
+      "id": 7,
+      "title": "Backend Failures & 5xx Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(backend_failures_total[1m])) by (backend, type)",
+          "legendFormat": "{{backend}} ({{type}})"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 },
+      "id": 8,
+      "title": "Cache, Rate Limiting & Reliability",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1 }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 19 },
+      "id": 9,
+      "title": "Cache Hit Ratio",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "rate(cache_hits_total[1m]) / (rate(cache_hits_total[1m]) + rate(cache_misses_total[1m]))",
+          "legendFormat": "Hit Ratio"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 19 },
+      "id": 10,
+      "title": "Cache Hits vs Misses",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(cache_hits_total[1m])",
+          "legendFormat": "Cache Hits"
+        },
+        {
+          "expr": "rate(cache_misses_total[1m])",
+          "legendFormat": "Cache Misses"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 19 },
+      "id": 11,
+      "title": "Rate Limit Rejections (429s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(rate_limit_rejections_total[1m])) by (client_ip)",
+          "legendFormat": "{{client_ip}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": { "unit": "none" }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 19 },
+      "id": 12,
+      "title": "Active & Pool Connections",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "active_connections",
+          "legendFormat": "Active In-Flight"
+        },
+        {
+          "expr": "connection_pool_active",
+          "legendFormat": "Pool Active Leased"
+        },
+        {
+          "expr": "connection_pool_idle",
+          "legendFormat": "Pool Idle KeepAlive"
+        }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["reverse-proxy", "observability", "metrics"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Distributed HTTP Reverse Proxy Overview",
+  "uid": "reverse-proxy-overview",
+  "version": 1
+}

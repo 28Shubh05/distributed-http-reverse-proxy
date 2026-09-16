@@ -17,6 +17,7 @@ import (
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/storage"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Config holds settings for the Admin API server.
@@ -76,8 +77,8 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If no token is configured, skip auth (e.g. dev/testing)
-		if s.cfg.Token == "" {
+		// If no token is configured or path is /metrics, allow public scrape
+		if s.cfg.Token == "" || r.URL.Path == "/metrics" {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -105,6 +106,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 }
 
 func (s *Server) routes() {
+	s.mux.Handle("GET /metrics", promhttp.Handler())
+
 	s.mux.HandleFunc("GET /admin/backends", s.handleGetBackends)
 	s.mux.HandleFunc("POST /admin/backends", s.handleCreateBackend)
 	s.mux.HandleFunc("DELETE /admin/backends/{id}", s.handleDeleteBackend)

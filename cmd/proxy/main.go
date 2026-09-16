@@ -28,6 +28,7 @@ import (
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/discovery"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/metrics"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/middleware"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/proxy"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/ratelimit"
@@ -229,6 +230,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 	var requestCount atomic.Uint64
 	middlewares := []middleware.MiddlewareFunc{
 		middleware.RequestID,
+		middleware.Metrics(metrics.Default),
 	}
 	if limiter != nil {
 		middlewares = append(middlewares, middleware.RateLimiting(limiter, middleware.RateLimitConfig{}))
