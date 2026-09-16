@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/loadbalancer"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/metrics"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/retry"
 )
 
@@ -67,6 +68,7 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			if lastErr != nil {
 				return nil, lastErr
 			}
+			metrics.Default.RecordProxyError("no_healthy_backends")
 			return nil, ErrNoHealthyBackends
 		}
 
@@ -92,11 +94,13 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			// Do not penalize backend if the client disconnected
 			if req.Context().Err() != nil {
 				decrementActiveConnections(backend)
+				metrics.Default.RecordProxyError("client_canceled")
 				return nil, err
 			}
 
 			// Record failure on this backend
 			rt.lb.RecordFailure(backend.ID)
+			metrics.Default.RecordBackendFailure(backend.ID, "transport_error")
 			lastErr = err
 
 			if rt.retryPolicy != nil && rt.retryPolicy.ShouldRetry(req.Method, 0, err, attempt) {
@@ -111,9 +115,12 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 
 		// 2. HTTP response received
+		metrics.Default.RecordBackendRequest(backend.ID, fmt.Sprintf("%d", resp.StatusCode))
+
 		// Check for transient retriable status codes (e.g. 502, 503, 504)
 		if rt.retryPolicy != nil && rt.retryPolicy.ShouldRetry(req.Method, resp.StatusCode, nil, attempt) {
 			rt.lb.RecordFailure(backend.ID)
+			metrics.Default.RecordBackendFailure(backend.ID, "status_error")
 			rt.logger.Warn("backend returned retriable status code, retrying on next backend",
 				"backend", backend.ID,
 				"attempt", attempt+1,
@@ -127,6 +134,7 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		// 3. Final response accepted
 		if resp.StatusCode >= 500 {
 			rt.lb.RecordFailure(backend.ID)
+			metrics.Default.RecordBackendFailure(backend.ID, "server_error")
 		} else {
 			rt.lb.RecordSuccess(backend.ID)
 		}

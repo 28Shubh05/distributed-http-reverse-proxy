@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/metrics"
 )
 
 // entry holds a registered backend inside the Checker.
@@ -70,6 +72,7 @@ func (c *Checker) Register(id, backendBaseURL string, bh *BackendHealth) {
 		healthURL: healthURL,
 		bh:        bh,
 	}
+	metrics.Default.SetBackendHealth(id, bh.IsAvailable())
 	c.logger.Info("registered backend for health checking",
 		"backend", id,
 		"health_url", healthURL,
@@ -81,6 +84,7 @@ func (c *Checker) Deregister(id string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.entries, id)
+	metrics.Default.SetBackendHealth(id, false)
 	c.logger.Info("deregistered backend from health checker", "backend", id)
 }
 
@@ -146,6 +150,7 @@ func (c *Checker) check(ctx context.Context, e *entry) {
 	resp, err := c.client.Do(req)
 	if err != nil {
 		e.bh.RecordFailure()
+		metrics.Default.SetBackendHealth(e.id, e.bh.IsAvailable())
 		c.logger.Warn("active health check failed",
 			"backend", e.id,
 			"health_url", e.healthURL,
@@ -158,6 +163,7 @@ func (c *Checker) check(ctx context.Context, e *entry) {
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		e.bh.RecordFailure()
+		metrics.Default.SetBackendHealth(e.id, e.bh.IsAvailable())
 		c.logger.Warn("active health check returned non-2xx",
 			"backend", e.id,
 			"http_status", resp.StatusCode,
@@ -168,6 +174,7 @@ func (c *Checker) check(ctx context.Context, e *entry) {
 
 	prevStatus := e.bh.Status()
 	e.bh.RecordSuccess()
+	metrics.Default.SetBackendHealth(e.id, e.bh.IsAvailable())
 	newStatus := e.bh.Status()
 
 	if prevStatus != newStatus {

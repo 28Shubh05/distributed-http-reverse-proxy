@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/metrics"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/ratelimit"
 )
 
@@ -72,6 +73,7 @@ func RateLimiting(limiter ratelimit.Limiter, cfg RateLimitConfig) MiddlewareFunc
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", resetSec))
 
 			if !res.Allowed {
+				metrics.Default.RecordRateLimitRejection(clientKey)
 				retryAfterSec := int64(math.Ceil(res.RetryAfter.Seconds()))
 				if retryAfterSec <= 0 {
 					retryAfterSec = 1

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/cache"
+	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/metrics"
 )
 
 // CacheConfig holds configuration parameters for the Caching middleware.
@@ -74,6 +75,7 @@ func Caching(c cache.Cache, cfg CacheConfig) MiddlewareFunc {
 
 			// 1. Check cache
 			if cached, hit := c.Get(cacheKey); hit && cached != nil {
+				metrics.Default.RecordCacheHit()
 				w.Header().Set("X-Cache", "HIT")
 				for k, vals := range cached.Headers {
 					if cache.HopByHopHeaders[k] {
@@ -96,6 +98,7 @@ func Caching(c cache.Cache, cfg CacheConfig) MiddlewareFunc {
 				header:         make(http.Header),
 				body:           &bytes.Buffer{},
 			}
+			metrics.Default.RecordCacheMiss()
 			w.Header().Set("X-Cache", "MISS")
 
 			next.ServeHTTP(capture, r)
