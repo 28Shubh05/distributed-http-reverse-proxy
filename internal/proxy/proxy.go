@@ -139,6 +139,8 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			rt.lb.RecordSuccess(backend.ID)
 		}
 
+		resp.Header.Set("X-Backend-Server", backend.URL.String())
+		resp.Header.Set("X-Retry-Count", fmt.Sprintf("%d", attempt))
 		return resp, nil
 	}
 

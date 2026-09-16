@@ -56,13 +56,27 @@ func Logging(logger *slog.Logger, requestCount *atomic.Uint64) MiddlewareFunc {
 			next.ServeHTTP(sw, r)
 
 			requestID, _ := r.Context().Value(requestIDKey).(string)
+			backend := sw.Header().Get("X-Backend-Server")
+			retryCount := sw.Header().Get("X-Retry-Count")
+			cacheHit := sw.Header().Get("X-Cache") == "HIT"
+			errMsg := sw.Header().Get("X-Error-Message")
+			if errMsg == "" && sw.status >= 400 {
+				errMsg = http.StatusText(sw.status)
+			}
+			latency := time.Since(start)
 
 			logger.Info("request handled",
+				"timestamp", time.Now().UTC().Format(time.RFC3339Nano),
 				"request_id", requestID,
 				"method", r.Method,
 				"path", r.URL.Path,
+				"backend", backend,
 				"status", sw.status,
-				"latency_ms", time.Since(start).Milliseconds(),
+				"latency", latency.Seconds(),
+				"latency_ms", latency.Milliseconds(),
+				"retry_count", retryCount,
+				"cache_hit", cacheHit,
+				"error", errMsg,
 				"remote_addr", r.RemoteAddr,
 				"user_agent", r.UserAgent(),
 			)
