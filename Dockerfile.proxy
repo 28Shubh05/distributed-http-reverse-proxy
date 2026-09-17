@@ -1,0 +1,24 @@
+# Stage 1: Build binary
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+RUN apk add --no-cache ca-certificates git
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/proxy ./cmd/proxy
+
+# Stage 2: Minimal runtime image
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates curl tzdata
+COPY --from=builder /bin/proxy /usr/local/bin/proxy
+
+EXPOSE 8080 8081
+
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+  CMD curl -fs http://localhost:8081/admin/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/proxy"]

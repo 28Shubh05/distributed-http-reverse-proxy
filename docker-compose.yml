@@ -1,0 +1,169 @@
+services:
+  # --- Infrastructure Services ---
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    container_name: proxy-etcd
+    environment:
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER=default=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-proxy-token
+      - ETCD_INITIAL_CLUSTER_STATE=new
+    ports:
+      - "2379:2379"
+    networks:
+      - proxy-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: proxy-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - proxy-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: proxy-postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=reverse_proxy
+    ports:
+      - "5432:5432"
+    networks:
+      - proxy-net
+
+  # --- Upstream Backend Services ---
+  backend-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: proxy-backend-1
+    command: ["-port", "9001", "-name", "backend-1", "-etcd-endpoints", "etcd:2379", "-advertise-url", "http://backend-1:9001", "-weight", "1"]
+    ports:
+      - "9001:9001"
+    depends_on:
+      - etcd
+    networks:
+      - proxy-net
+
+  backend-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: proxy-backend-2
+    command: ["-port", "9002", "-name", "backend-2", "-etcd-endpoints", "etcd:2379", "-advertise-url", "http://backend-2:9002", "-weight", "1"]
+    ports:
+      - "9002:9002"
+    depends_on:
+      - etcd
+    networks:
+      - proxy-net
+
+  backend-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: proxy-backend-3
+    command: ["-port", "9003", "-name", "backend-3", "-etcd-endpoints", "etcd:2379", "-advertise-url", "http://backend-3:9003", "-weight", "1"]
+    ports:
+      - "9003:9003"
+    depends_on:
+      - etcd
+    networks:
+      - proxy-net
+
+  # --- Reverse Proxy Pair (Active-Active Multi-Proxy Scaling) ---
+  proxy-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    container_name: proxy-instance-1
+    command:
+      - "--port=8080"
+      - "--admin-port=8081"
+      - "--admin-token=secret-admin-token"
+      - "--backends=http://backend-1:9001,http://backend-2:9002,http://backend-3:9003"
+      - "--etcd-endpoints=etcd:2379"
+      - "--redis-addr=redis:6379"
+      - "--postgres-url=postgres://postgres:postgres@postgres:5432/reverse_proxy?sslmode=disable"
+      - "--cache=true"
+      - "--ratelimit=true"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+      - redis
+      - postgres
+      - etcd
+    networks:
+      - proxy-net
+
+  proxy-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    container_name: proxy-instance-2
+    command:
+      - "--port=8080"
+      - "--admin-port=8081"
+      - "--admin-token=secret-admin-token"
+      - "--backends=http://backend-1:9001,http://backend-2:9002,http://backend-3:9003"
+      - "--etcd-endpoints=etcd:2379"
+      - "--redis-addr=redis:6379"
+      - "--postgres-url=postgres://postgres:postgres@postgres:5432/reverse_proxy?sslmode=disable"
+      - "--cache=true"
+      - "--ratelimit=true"
+    ports:
+      - "8082:8080"
+      - "8083:8081"
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+      - redis
+      - postgres
+      - etcd
+    networks:
+      - proxy-net
+
+  # --- Observability Services ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: proxy-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployments/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - proxy-1
+      - proxy-2
+    networks:
+      - proxy-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: proxy-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deployments/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deployments/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deployments/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - proxy-net
+
+networks:
+  proxy-net:
+    driver: bridge

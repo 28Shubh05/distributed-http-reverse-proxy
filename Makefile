@@ -89,6 +89,26 @@ bench-parallel:
 bench-cache:
 	$(GOTEST) -bench=BenchmarkCache -benchtime=3s -benchmem ./internal/cache/
 
+## docker-build: Build all container images using Docker Compose
+docker-build:
+	docker compose build
+
+## docker-up: Start the entire 10-service distributed cluster in background
+docker-up:
+	docker compose up -d
+
+## docker-down: Stop and remove all containers and networks
+docker-down:
+	docker compose down
+
+## docker-ps: Show status of all distributed proxy cluster services
+docker-ps:
+	docker compose ps
+
+## docker-logs: Follow logs of all cluster services
+docker-logs:
+	docker compose logs -f
+
 ## help: Show this help
 help:
 	@echo "Available targets:"
