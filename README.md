@@ -133,10 +133,16 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Pre-built Grafana dashboard JSON with 9 panels auto-provisioned from `deployments/grafana/`
   - Prometheus scrape configuration in `deployments/prometheus/prometheus.yml`
 
+- [x] **Day 13 — Docker + Distributed Deployment**
+  - Multi-stage Dockerfiles (`Dockerfile.proxy`, `Dockerfile.backend`, `Dockerfile.admin`) using minimal Alpine runtimes
+  - Full Docker Compose cluster orchestration running 10 distributed services simultaneously
+  - Active-active multi-proxy horizontal scaling (`proxy-1` on `:8080`, `proxy-2` on `:8082`)
+  - Upstream backend fleet with dynamic self-registration via `etcd:2379`
+  - Integrated shared state: distributed Redis cache & rate limiter, PostgreSQL storage, Prometheus, and Grafana
+  - Chaos fault-tolerance verification: backend node kill and hot zero-downtime recovery
+
 ### Planned
 
-- [ ] Docker + Docker Compose deployment
-- [ ] Multi-proxy horizontal scaling
 - [ ] Load testing + chaos testing + benchmarks
 - [ ] CI/CD with GitHub Actions
 
@@ -237,6 +243,7 @@ distributed-http-reverse-proxy/
 - [Service Discovery](docs/service-discovery.md) — etcd v3 registry, lease keepalive, watch streaming, dynamic pool updates
 - [Admin API & PostgreSQL](docs/admin-api.md) — Control plane endpoints, bearer auth, PostgreSQL schema, reload, CLI tool
 - [Observability](docs/observability.md) — Prometheus metrics, /metrics endpoint, JSON logging fields, Grafana dashboard
+- [Docker & Distributed Deployment](docs/deployment.md) — Multi-stage images, Docker Compose cluster, multi-proxy scaling, chaos testing
 
 ## Development Progress
 
@@ -254,8 +261,8 @@ distributed-http-reverse-proxy/
 | 10 | Service Discovery (etcd) | ✅ Complete |
 | 11 | Admin API + PostgreSQL | ✅ Complete |
 | 12 | Observability (Prometheus + Grafana) | ✅ Complete |
-| 13 | Docker + Distributed Deployment | 🔜 Next |
-| 14 | Load Testing + Chaos Testing | ⬜ |
+| 13 | Docker + Distributed Deployment | ✅ Complete |
+| 14 | Load Testing + Chaos Testing | 🔜 Next |
 | 15 | Production Polish + Documentation | ⬜ |
 
 ## License
