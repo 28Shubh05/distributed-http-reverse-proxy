@@ -141,9 +141,15 @@ A production-style distributed reverse proxy and intelligent load balancer built
   - Integrated shared state: distributed Redis cache & rate limiter, PostgreSQL storage, Prometheus, and Grafana
   - Chaos fault-tolerance verification: backend node kill and hot zero-downtime recovery
 
+- [x] **Day 14 — Load Testing + Chaos Testing**
+  - Integrated `net/http/pprof` profiling endpoints (`/debug/pprof/`) on control plane for CPU and memory heap analysis
+  - Automated chaos test suite (`test/chaos/`) simulating backend crashes, latency spikes, Redis outages, and blackout recovery
+  - High-performance concurrent load generator CLI (`cmd/loadgen`) calculating throughput, error rates, and P50/P90/P95/P99 latency
+  - Concurrency benchmarks scaling across 100, 500, 1000, and 5000 concurrent clients delivering up to 26,000+ RPS
+  - Connection pooling efficiency benchmarks demonstrating 6.5x throughput improvement over non-pooled setups
+
 ### Planned
 
-- [ ] Load testing + chaos testing + benchmarks
 - [ ] CI/CD with GitHub Actions
 
 ## Technology Stack
@@ -244,6 +250,7 @@ distributed-http-reverse-proxy/
 - [Admin API & PostgreSQL](docs/admin-api.md) — Control plane endpoints, bearer auth, PostgreSQL schema, reload, CLI tool
 - [Observability](docs/observability.md) — Prometheus metrics, /metrics endpoint, JSON logging fields, Grafana dashboard
 - [Docker & Distributed Deployment](docs/deployment.md) — Multi-stage images, Docker Compose cluster, multi-proxy scaling, chaos testing
+- [Benchmarks & Chaos Engineering](docs/benchmarks.md) — Concurrency scaling (100-5000 clients), pprof profiling, failure scenarios
 
 ## Development Progress
 
@@ -262,8 +269,8 @@ distributed-http-reverse-proxy/
 | 11 | Admin API + PostgreSQL | ✅ Complete |
 | 12 | Observability (Prometheus + Grafana) | ✅ Complete |
 | 13 | Docker + Distributed Deployment | ✅ Complete |
-| 14 | Load Testing + Chaos Testing | 🔜 Next |
-| 15 | Production Polish + Documentation | ⬜ |
+| 14 | Load Testing + Chaos Testing | ✅ Complete |
+| 15 | Production Polish + Documentation | 🔜 Next |
 
 ## License
 
