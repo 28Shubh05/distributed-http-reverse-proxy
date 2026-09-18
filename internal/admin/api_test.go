@@ -220,3 +220,25 @@ func TestAdminAPI_MetricsEndpoint(t *testing.T) {
 		t.Errorf("expected prometheus metrics in response, got:\n%s", body)
 	}
 }
+
+func TestAdminAPI_PprofEndpoints(t *testing.T) {
+	server := NewServer(Config{
+		Token: "secret-token-123",
+		Store: storage.NewMemoryStore(),
+	})
+	handler := server.Handler()
+
+	// Access /debug/pprof/ without token should succeed (200 OK)
+	req := httptest.NewRequest(http.MethodGet, "/debug/pprof/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on /debug/pprof/, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !bytes.Contains([]byte(body), []byte("Types of profiles available")) {
+		t.Errorf("expected pprof index page, got:\n%s", body)
+	}
+}

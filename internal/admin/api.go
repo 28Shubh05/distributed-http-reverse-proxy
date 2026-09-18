@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"net/url"
 	"strconv"
 	"strings"
@@ -77,8 +78,8 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// If no token is configured or path is /metrics, allow public scrape
-		if s.cfg.Token == "" || r.URL.Path == "/metrics" {
+		// If no token is configured or path is /metrics or /debug/pprof, allow public scrape/profile
+		if s.cfg.Token == "" || r.URL.Path == "/metrics" || strings.HasPrefix(r.URL.Path, "/debug/pprof") {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -107,6 +108,14 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 func (s *Server) routes() {
 	s.mux.Handle("GET /metrics", promhttp.Handler())
+
+	// pprof profiling endpoints
+	s.mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	s.mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	s.mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	s.mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	s.mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
+	s.mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
 
 	s.mux.HandleFunc("GET /admin/backends", s.handleGetBackends)
 	s.mux.HandleFunc("POST /admin/backends", s.handleCreateBackend)
