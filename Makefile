@@ -25,6 +25,7 @@ build:
 	$(GOBUILD) -o $(BINARY_DIR)/$(BACKEND).exe ./cmd/backend/
 	$(GOBUILD) -o $(BINARY_DIR)/proxy.exe ./cmd/proxy/
 	$(GOBUILD) -o $(BINARY_DIR)/admin.exe ./cmd/admin/
+	$(GOBUILD) -o $(BINARY_DIR)/loadgen.exe ./cmd/loadgen/
 	@echo "Build complete. Binaries in $(BINARY_DIR)/"
 
 ## test: Run all tests
@@ -88,6 +89,14 @@ bench-parallel:
 ## bench-cache: Run cache benchmarks (cache disabled vs cache enabled)
 bench-cache:
 	$(GOTEST) -bench=BenchmarkCache -benchtime=3s -benchmem ./internal/cache/
+
+## bench-load: Run high-concurrency benchmarks (100, 500, 1000 workers)
+bench-load:
+	$(GOTEST) -bench=BenchmarkProxy -benchtime=3s -benchmem ./test/load/
+
+## load-test: Run load testing simulation against live proxy
+load-test: build
+	./$(BINARY_DIR)/loadgen.exe -url http://localhost:8080/api/info -c 100 -n 10000
 
 ## docker-build: Build all container images using Docker Compose
 docker-build:
