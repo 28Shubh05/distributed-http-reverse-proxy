@@ -185,10 +185,10 @@ func TestMemoryCache_Stats(t *testing.T) {
 	c := NewMemoryCache(100)
 
 	c.Set("x", &CachedResponse{StatusCode: 200}, time.Minute)
-	c.Get("x")   // hit
-	c.Get("x")   // hit
-	c.Get("y")   // miss
-	c.Get("z")   // miss
+	c.Get("x") // hit
+	c.Get("x") // hit
+	c.Get("y") // miss
+	c.Get("z") // miss
 
 	s := c.Stats()
 	if s.Hits != 2 {

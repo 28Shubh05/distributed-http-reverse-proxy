@@ -136,9 +136,9 @@ func (cb *CircuitBreaker) State() State {
 // Rules:
 //   - CLOSED: Always true.
 //   - OPEN: True only if OpenTimeout has elapsed (transitions to HALF_OPEN and claims 1 trial slot).
-//           Otherwise false (fails fast).
+//     Otherwise false (fails fast).
 //   - HALF_OPEN: True only if currently active trial requests < HalfOpenMaxRequests.
-//                Otherwise false (thundering herd protection).
+//     Otherwise false (thundering herd protection).
 func (cb *CircuitBreaker) Allow() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()

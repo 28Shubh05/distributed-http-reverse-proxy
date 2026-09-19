@@ -2,7 +2,7 @@ package loadbalancer
 
 import (
 	"net/url"
-	
+
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/circuitbreaker"
 	"github.com/28Shubh05/distributed-http-reverse-proxy/internal/health"
 )
@@ -12,7 +12,7 @@ type Backend struct {
 	ID     string   // Unique identifier for the backend
 	URL    *url.URL // Parsed URL of the backend
 	Weight int      // Weight for Weighted Round Robin
-	
+
 	// ActiveConnections tracks the number of currently active requests to this backend.
 	// This should be updated atomically.
 	ActiveConnections int64

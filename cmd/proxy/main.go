@@ -146,7 +146,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 		if bURL == "" {
 			continue
 		}
-		
+
 		parsedURL, err := url.Parse(bURL)
 		if err != nil {
 			return fmt.Errorf("invalid backend URL %q: %w", bURL, err)
@@ -155,7 +155,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 		id := fmt.Sprintf("backend-%d", i+1)
 		bh := health.NewBackendHealth(healthCfg)
 		cb := circuitbreaker.New(circuitbreaker.DefaultConfig())
-		
+
 		backend := &loadbalancer.Backend{
 			ID:             id,
 			URL:            parsedURL,
@@ -163,7 +163,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg runConfig) error {
 			Health:         bh,
 			CircuitBreaker: cb,
 		}
-		
+
 		lb.AddBackend(backend)
 		healthChecker.Register(id, bURL, bh)
 	}

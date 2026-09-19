@@ -52,7 +52,7 @@ func TestRoundRobin_AddRemove(t *testing.T) {
 	if len(rr.backends) != 0 {
 		t.Fatalf("expected 0 backends, got %d", len(rr.backends))
 	}
-	
+
 	if rr.SelectBackend() != nil {
 		t.Fatal("expected nil after removing only backend")
 	}

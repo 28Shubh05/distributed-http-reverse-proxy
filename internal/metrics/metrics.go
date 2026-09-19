@@ -12,7 +12,7 @@ import (
 // Metrics holds the registered Prometheus collectors for the reverse proxy.
 type Metrics struct {
 	// Request counters and histograms
-	ProxyRequestsTotal         *prometheus.CounterVec
+	ProxyRequestsTotal          *prometheus.CounterVec
 	ProxyRequestDurationSeconds *prometheus.HistogramVec
 	ProxyRequestErrorsTotal     *prometheus.CounterVec
 

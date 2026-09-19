@@ -62,7 +62,7 @@ func TestLeastConnections_Decrement(t *testing.T) {
 
 	lc.SelectBackend() // +1
 	lc.SelectBackend() // +1
-	
+
 	if b1.ActiveConnections != 2 {
 		t.Fatalf("expected 2 active connections, got %d", b1.ActiveConnections)
 	}

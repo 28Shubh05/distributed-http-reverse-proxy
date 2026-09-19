@@ -13,9 +13,9 @@ import (
 
 // entry holds a registered backend inside the Checker.
 type entry struct {
-	id         string
-	healthURL  string // e.g. "http://backend-1:9001/health"
-	bh         *BackendHealth
+	id        string
+	healthURL string // e.g. "http://backend-1:9001/health"
+	bh        *BackendHealth
 }
 
 // Checker runs active health checks against registered backends.
@@ -33,11 +33,11 @@ type entry struct {
 //	// ...
 //	cancel() // graceful shutdown
 type Checker struct {
-	mu       sync.RWMutex
-	entries  map[string]*entry
-	cfg      Config
-	client   *http.Client
-	logger   *slog.Logger
+	mu      sync.RWMutex
+	entries map[string]*entry
+	cfg     Config
+	client  *http.Client
+	logger  *slog.Logger
 }
 
 // NewChecker creates a Checker with the given config and logger.

@@ -78,9 +78,9 @@ func DefaultPolicy() *Policy {
 			http.MethodPatch:   false, // non-idempotent
 		},
 		RetryableStatusCodes: map[int]bool{
-			http.StatusBadGateway:          true, // 502
+			http.StatusBadGateway:         true, // 502
 			http.StatusServiceUnavailable: true, // 503
-			http.StatusGatewayTimeout:      true, // 504
+			http.StatusGatewayTimeout:     true, // 504
 		},
 		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}

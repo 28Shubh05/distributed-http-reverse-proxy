@@ -102,10 +102,10 @@ func (w *Watcher) add(entry BackendEntry) {
 	bh := health.NewBackendHealth(health.DefaultConfig())
 	cb := circuitbreaker.New(w.cbConfig)
 	backend := &loadbalancer.Backend{
-		ID:     entry.ID,
-		URL:    u,
-		Weight: weight,
-		Health: bh,
+		ID:             entry.ID,
+		URL:            u,
+		Weight:         weight,
+		Health:         bh,
 		CircuitBreaker: cb,
 	}
 

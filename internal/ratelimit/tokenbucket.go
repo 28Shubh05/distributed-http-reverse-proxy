@@ -124,7 +124,7 @@ func (tbl *TokenBucketLimiter) AllowN(key string, n int) Result {
 
 	// Insufficient tokens: calculate time required for 1 token to become available
 	missing := req - b.tokens
-	retryAfter := time.Duration(math.Ceil((missing/tbl.rate)*float64(time.Second)))
+	retryAfter := time.Duration(math.Ceil((missing / tbl.rate) * float64(time.Second)))
 	resetIn := time.Duration(float64(tbl.capacity)/tbl.rate) * time.Second
 
 	return Result{
