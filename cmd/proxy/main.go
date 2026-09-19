@@ -1,10 +1,21 @@
-// cmd/proxy is the entry point for the reverse proxy server.
+// Package main is the entry point for the distributed HTTP reverse proxy server.
 //
-// Day 6 additions:
-//   - Multiple backends (comma separated)
-//   - Round Robin load balancer
-//   - Active health checker
-//   - Passive failure detection
+// Features (production-ready):
+//   - HTTP/1.1 reverse proxy with httputil.ReverseProxy
+//   - Load balancing: Round-Robin, Weighted Round-Robin, Least-Connections
+//   - Active + passive health checking with state machine (Healthy / Recovering / Unhealthy)
+//   - Circuit breaker per backend (CLOSED / HALF-OPEN / OPEN)
+//   - Retry with exponential backoff + jitter (idempotent requests only)
+//   - Configurable HTTP connection pool (tunable idle connections, timeouts)
+//   - In-memory LRU response cache or Redis distributed cache
+//   - In-memory Token Bucket rate limiter or Redis Lua distributed rate limiter
+//   - Dynamic service discovery via etcd v3 (watch streaming)
+//   - Admin control plane API on separate port with bearer token auth
+//   - PostgreSQL persistent storage for backends/config (memory fallback)
+//   - Prometheus metrics at GET /metrics (15 counters, histograms, gauges)
+//   - pprof profiling at GET /debug/pprof/
+//   - Enriched structured JSON logging per request
+//   - Graceful shutdown with configurable drain timeout
 package main
 
 import (
